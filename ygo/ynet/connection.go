@@ -1,8 +1,10 @@
 package ynet
 
 import (
+	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/yiface"
+	"io"
 	"net"
 )
 
@@ -19,13 +21,35 @@ type Connection struct {
 	ExitBuffChan chan bool
 }
 
-func NewConnection(conn *net.TCPConn,connId uint32,router yiface.IRouter) *Connection {
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connection closed when send msg")
+	}
+	//将data封包，并且发送
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack error msg id = ", msgId)
+		return  errors.New("Pack error msg ")
+	}
+
+	//写回客户端
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("Write msg id ", msgId, " error ")
+		c.ExitBuffChan <- true
+		return errors.New("conn Write error")
+	}
+
+	return nil
+}
+
+func NewConnection(conn *net.TCPConn, connId uint32, router yiface.IRouter) *Connection {
 	c := &Connection{
-		Conn:conn,
-		ConnId:connId,
-		isClosed:false,
-		Router:router,
-		ExitBuffChan:make(chan bool,1),
+		Conn:         conn,
+		ConnId:       connId,
+		isClosed:     false,
+		Router:       router,
+		ExitBuffChan: make(chan bool, 1),
 	}
 	return c
 }
@@ -36,22 +60,41 @@ func (c *Connection) StartReader() {
 	defer fmt.Println(c.RemoteAddr().String(), " conn reader exit!")
 	defer c.Stop()
 
-	for  {
-		//读取我们最大的数据到buf中
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("recv buf err ", err)
+	for {
+		//创建拆包解包对象
+		dp := NewDataPack()
+		//读取客户端Msg head
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head error ", err)
 			c.ExitBuffChan <- true
 			continue
 		}
+		//拆包，得到msgid 和 datalen 放在msg中
+		msg, err := dp.UnPack(headData)
+		if err != nil {
+			fmt.Println("unpack error ", err)
+			c.ExitBuffChan <- true
+			continue
+		}
+		//根据 dataLen 读取 data，放在msg.Data中
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data error ", err)
+				c.ExitBuffChan <- true
+				continue
+			}
+		}
+		msg.SetData(data)
 		//得到当前客户端请求的Request数据
 		req := Request{
-			conn:c,
-			data:buf,
+			conn: c,
+			msg:  msg,
 		}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
-		go func (request yiface.IRequest) {
+		go func(request yiface.IRequest) {
 			//执行注册的路由方法
 			c.Router.PreHandle(request)
 			c.Router.Handle(request)
@@ -66,7 +109,7 @@ func (c *Connection) Start() {
 
 	for {
 		select {
-		case <- c.ExitBuffChan:
+		case <-c.ExitBuffChan:
 			//得到退出消息，不再阻塞
 			return
 		}
@@ -103,5 +146,3 @@ func (c *Connection) GetConnId() uint32 {
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
-
-

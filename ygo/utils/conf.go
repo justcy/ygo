@@ -13,15 +13,15 @@ type Config struct {
 	Name          string         //当前服务器名称
 	Version       string         //当前Ygo版本号
 	MaxPacketSize uint32         //数据包的最大值
-	MaxConn        int            //当前服务器允许的最大连接个数
+	MaxConn       int            //当前服务器允许的最大连接个数
 }
 
 func (g Config) Reload() {
-	data,err := ioutil.ReadFile("conf/ygo.json")
+	data, err := ioutil.ReadFile("conf/ygo.json")
 	if err != nil {
 		panic(err)
 	}
-	err = json.Unmarshal(data,&GlobalObject)
+	err = json.Unmarshal(data, &GlobalObject)
 	if err != nil {
 		panic(err)
 	}
@@ -31,12 +31,12 @@ var GlobalObject *Config
 
 func init() {
 	GlobalObject = &Config{
-		Name:"YgoServerApp",
-		Version:"0.4",
-		TcpPort:7777,
-		Host:"0.0.0.0",
-		MaxConn:12000,
-		MaxPacketSize:4096,
+		Name:          "YgoServerApp",
+		Version:       "0.4",
+		TcpPort:       7777,
+		Host:          "0.0.0.0",
+		MaxConn:       12000,
+		MaxPacketSize: 4096,
 	}
 	GlobalObject.Reload()
 }

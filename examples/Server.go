@@ -22,9 +22,13 @@ func (this *PingRouter) PreHandle(request yiface.IRequest) {
 //Test Handle
 func (this *PingRouter) Handle(request yiface.IRequest) {
 	fmt.Println("Call PingRouter Handle")
-	_, err := request.GetConnection().GetTCPConnection().Write([]byte("ping...ping...ping\n"))
-	if err !=nil {
-		fmt.Println("call back ping ping ping error")
+	//先读取客户端的数据，再回写ping...ping...ping
+	fmt.Println("recv from client : msgId=", request.GetMsgId(), ", data=", string(request.GetData()))
+
+	//回写数据
+	err := request.GetConnection().SendMsg(1, []byte("ping...ping...ping"))
+	if err != nil {
+		fmt.Println(err)
 	}
 }
 
