@@ -40,7 +40,7 @@ func (this *PingRouter) AfterHandle(request yiface.IRequest) {
 func main() {
 
 	//1 创建一个server 句柄 s
-	s := ynet.NewServer("[Ygo V0.3]")
+	s := ynet.NewServer()
 
 	s.AddRouter(&PingRouter{})
 	//2 开启服务
