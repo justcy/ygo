@@ -24,6 +24,7 @@ type IConnection interface {
 	GetProperty(key string)(interface{}, error)
 	//移除链接属性
 	RemoveProperty(key string)
+
 }
 
 //定义一个统一处理链接业务的接口

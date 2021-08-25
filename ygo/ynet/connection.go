@@ -1,6 +1,7 @@
 package ynet
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
@@ -22,7 +23,11 @@ type Connection struct {
 	//消息管理MsgId和对应处理方法的消息管理模块
 	MsgHandler yiface.IMsgHandle
 	//告知该链接已经退出
-	ExitBuffChan chan bool
+	//告知该链接已经退出/停止的channel
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	//ExitBuffChan chan bool
 	//无缓冲通道，用于读写两个goroutine之间的通信
 	msgChan chan []byte
 	//有关冲管道，用于读、写两个goroutine之间的消息通信
@@ -96,15 +101,15 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 
 func NewConnection(server yiface.IServer, conn *net.TCPConn, connId uint32, handle yiface.IMsgHandle) *Connection {
 	c := &Connection{
-		TcpServer:    server,
-		Conn:         conn,
-		ConnId:       connId,
-		isClosed:     false,
-		MsgHandler:   handle,
-		ExitBuffChan: make(chan bool, 1),
-		msgChan:      make(chan []byte),
-		msgBuffChan:  make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
-		property:     make(map[string]interface{}), //对链接属性map初始化
+		TcpServer:  server,
+		Conn:       conn,
+		ConnId:     connId,
+		isClosed:   false,
+		MsgHandler: handle,
+		//ExitBuffChan: make(chan bool, 1),
+		msgChan:     make(chan []byte),
+		msgBuffChan: make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
+		property:    make(map[string]interface{}), //对链接属性map初始化
 	}
 	//将新创建的Conn添加到链接管理中
 	c.TcpServer.GetConnMgr().Add(c) //将当前新创建的连接添加到ConnManager中
@@ -184,7 +189,7 @@ func (c *Connection) StartWriter() {
 				break
 				fmt.Println("msgBuffChan is Closed")
 			}
-		case <-c.ExitBuffChan:
+		case <-c.ctx.Done():
 			//conn已经关闭
 			return
 		}
@@ -192,6 +197,8 @@ func (c *Connection) StartWriter() {
 }
 
 func (c *Connection) Start() {
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+
 	//开启处理该链接读取到客户端数据之后的请求业务
 	go c.StartReader()
 	//2 开启用于写回客户端数据流程的Goroutine
@@ -199,14 +206,6 @@ func (c *Connection) Start() {
 
 	//按照用户传递进来的创建连接时需要处理的业务，执行钩子方法
 	c.TcpServer.CallOnConnStart(c)
-
-	for {
-		select {
-		case <-c.ExitBuffChan:
-			//得到退出消息，不再阻塞
-			return
-		}
-	}
 }
 
 func (c *Connection) Stop() {
@@ -222,14 +221,13 @@ func (c *Connection) Stop() {
 	// 关闭socket链接
 	c.Conn.Close()
 
-	//通知从缓冲队列读数据的业务，该链接已经关闭
-	c.ExitBuffChan <- true
+	//关闭Writer
+	c.cancel()
 
 	//将链接从连接管理器中删除
 	c.TcpServer.GetConnMgr().Remove(c)
 
 	//关闭该链接全部管道
-	close(c.ExitBuffChan)
 	close(c.msgBuffChan)
 }
 
@@ -243,4 +241,9 @@ func (c *Connection) GetConnId() uint32 {
 
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
+}
+
+//返回ctx，用于用户自定义的go程获取连接退出状态
+func (c *Connection) Context() context.Context {
+	return c.ctx
 }
