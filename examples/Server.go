@@ -8,9 +8,8 @@ import (
 
 //ping test 自定义路由
 type PingRouter struct {
-	ynet.BaseRouter//一定要先基础BaseRouter
+	ynet.BaseRouter //一定要先基础BaseRouter
 }
-
 
 //Test Handle
 func (this *PingRouter) Handle(request yiface.IRequest) {
@@ -24,6 +23,7 @@ func (this *PingRouter) Handle(request yiface.IRequest) {
 		fmt.Println(err)
 	}
 }
+
 //HelloYgoRouter Handle
 type HelloYgoRouter struct {
 	ynet.BaseRouter
@@ -40,13 +40,31 @@ func (this *HelloYgoRouter) Handle(request yiface.IRequest) {
 	}
 }
 
+//创建连接的时候执行
+func DoConnectionBegin(conn yiface.IConnection) {
+	fmt.Println("DoConnecionBegin is Called ... ")
+	err := conn.SendMsg(2, []byte("DoConnection BEGIN..."))
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+//连接断开的时候执行
+func DoConnectionLost(conn yiface.IConnection) {
+	fmt.Println("DoConneciotnLost is Called ... ")
+}
+
 func main() {
 
 	//1 创建一个server 句柄 s
 	s := ynet.NewServer()
 
-	s.AddRouter(0,&PingRouter{})
-	s.AddRouter(1,&HelloYgoRouter{})
+	//注册链接hook回调函数
+	s.SetOnConnStart(DoConnectionBegin)
+	s.SetOnConnStop(DoConnectionLost)
+	//配置路由
+	s.AddRouter(0, &PingRouter{})
+	s.AddRouter(1, &HelloYgoRouter{})
 	//2 开启服务
 	s.Server()
 }

@@ -16,6 +16,7 @@ type Config struct {
 	MaxConn          int            //当前服务器允许的最大连接个数
 	WorkerPoolSize   uint32         //业务工作Worker池的数量
 	MaxWorkerTaskLen uint32         //业务工作Worker对应负责的任务队列最大任务存储数量
+	MaxMsgChanLen    uint32         //业务工作Worker对应负责的任务队列最大任务存储数量
 }
 
 func (g Config) Reload() {
@@ -33,14 +34,15 @@ var GlobalObject *Config
 
 func init() {
 	GlobalObject = &Config{
-		Name:          "YgoServerApp",
-		Version:       "0.4",
-		TcpPort:       7777,
-		Host:          "0.0.0.0",
-		MaxConn:       12000,
-		MaxPacketSize: 4096,
-		WorkerPoolSize: 10,
+		Name:             "YgoServerApp",
+		Version:          "0.4",
+		TcpPort:          7777,
+		Host:             "0.0.0.0",
+		MaxConn:          12000,
+		MaxPacketSize:    4096,
+		WorkerPoolSize:   10,
 		MaxWorkerTaskLen: 1024,
+		MaxMsgChanLen:    100,
 	}
 	GlobalObject.Reload()
 }
