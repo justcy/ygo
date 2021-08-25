@@ -7,6 +7,7 @@ import (
 	"github.com/justcy/ygo/ygo/yiface"
 	"io"
 	"net"
+	"sync"
 )
 
 type Connection struct {
@@ -26,6 +27,36 @@ type Connection struct {
 	msgChan chan []byte
 	//有关冲管道，用于读、写两个goroutine之间的消息通信
 	msgBuffChan chan []byte
+
+	//链接属性
+	property map[string]interface{}
+	//保护链接属性修改的锁
+	propertyLock sync.RWMutex
+}
+
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	c.property[key] = value
+}
+
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("no property found")
+	}
+}
+
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
 }
 
 func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
@@ -73,6 +104,7 @@ func NewConnection(server yiface.IServer, conn *net.TCPConn, connId uint32, hand
 		ExitBuffChan: make(chan bool, 1),
 		msgChan:      make(chan []byte),
 		msgBuffChan:  make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
+		property:     make(map[string]interface{}), //对链接属性map初始化
 	}
 	//将新创建的Conn添加到链接管理中
 	c.TcpServer.GetConnMgr().Add(c) //将当前新创建的连接添加到ConnManager中
