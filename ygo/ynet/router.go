@@ -1,7 +1,6 @@
 package ynet
 
 import (
-	"fmt"
 	"github.com/justcy/ygo/ygo/yiface"
 )
 

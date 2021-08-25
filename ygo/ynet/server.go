@@ -1,12 +1,12 @@
 package ynet
 
 import (
+	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
 	"net"
 	"time"
-	"errors"
 )
 
 type Server struct {
@@ -14,12 +14,13 @@ type Server struct {
 	IPVersion string
 	IP        string
 	Port      int
-	Router    yiface.IRouter
+	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
+	msgHandler yiface.IMsgHandle
 }
 
-func (s *Server) AddRouter(router yiface.IRouter) {
+func (s *Server) AddRouter(msgId uint32, router yiface.IRouter) {
 	fmt.Println("Add Router success !")
-	s.Router = router
+	s.msgHandler.AddRouter(msgId, router)
 }
 
 //============== 定义当前客户端链接的handle api ===========
@@ -71,7 +72,7 @@ func (s *Server) Start() {
 
 			//3.3 TODO Server.Start() 处理该新连接请求的 业务 方法， 此时应该有 handler 和 conn是绑定的
 
-			dealConn := NewConnection(conn, cid, s.Router)
+			dealConn := NewConnection(conn, cid, s.msgHandler)
 			cid++
 			go dealConn.Start()
 		}
@@ -96,11 +97,11 @@ func (s *Server) Stop() {
 func NewServer() yiface.IServer {
 	utils.GlobalObject.Reload()
 	s := &Server{
-		Name:      utils.GlobalObject.Name,
-		IPVersion: "tcp4",
-		IP:        utils.GlobalObject.Host,
-		Port:      utils.GlobalObject.TcpPort,
-		Router:    nil,
+		Name:       utils.GlobalObject.Name,
+		IPVersion:  "tcp4",
+		IP:         utils.GlobalObject.Host,
+		Port:       utils.GlobalObject.TcpPort,
+		msgHandler: NewMsgHandle(),
 	}
 	return s
 }

@@ -15,8 +15,8 @@ type Connection struct {
 	ConnId uint32
 	//当前链接的关闭状态
 	isClosed bool
-	//该连接的处理方法API
-	Router yiface.IRouter
+	//消息管理MsgId和对应处理方法的消息管理模块
+	MsgHandler yiface.IMsgHandle
 	//告知该链接已经退出
 	ExitBuffChan chan bool
 }
@@ -30,7 +30,7 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	msg, err := dp.Pack(NewMsgPackage(msgId, data))
 	if err != nil {
 		fmt.Println("Pack error msg id = ", msgId)
-		return  errors.New("Pack error msg ")
+		return errors.New("Pack error msg ")
 	}
 
 	//写回客户端
@@ -43,12 +43,12 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func NewConnection(conn *net.TCPConn, connId uint32, router yiface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connId uint32, handle yiface.IMsgHandle) *Connection {
 	c := &Connection{
 		Conn:         conn,
 		ConnId:       connId,
 		isClosed:     false,
-		Router:       router,
+		MsgHandler:   handle,
 		ExitBuffChan: make(chan bool, 1),
 	}
 	return c
@@ -94,12 +94,7 @@ func (c *Connection) StartReader() {
 			msg:  msg,
 		}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
-		go func(request yiface.IRequest) {
-			//执行注册的路由方法
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.AfterHandle(request)
-		}(&req)
+		go c.MsgHandler.DoMsgHandler(&req)
 	}
 }
 
