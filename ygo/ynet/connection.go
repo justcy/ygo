@@ -12,6 +12,7 @@ import (
 )
 
 type Connection struct {
+	sync.RWMutex
 	//当前Conn属于哪个Server
 	TcpServer yiface.IServer //当前conn属于哪个server，在conn初始化的时候添加即可
 	//当前连接的套接字
@@ -65,11 +66,14 @@ func (c *Connection) RemoveProperty(key string) {
 }
 
 func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
+	c.RLock()
+	defer c.RUnlock()
+
 	if c.isClosed == true {
 		return errors.New("Connection closed when send buff msg")
 	}
 	//将data封包，并且发送
-	dp := NewDataPack()
+	dp := c.TcpServer.Packet()
 	msg, err := dp.Pack(NewMsgPackage(msgId, data))
 	if err != nil {
 		fmt.Println("Pack error msg id = ", msgId)
@@ -83,11 +87,14 @@ func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
 }
 
 func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	c.RLock()
+	defer c.RUnlock()
+
 	if c.isClosed == true {
 		return errors.New("Connection closed when send msg")
 	}
 	//将data封包，并且发送
-	dp := NewDataPack()
+	dp := c.TcpServer.Packet()
 	msg, err := dp.Pack(NewMsgPackage(msgId, data))
 	if err != nil {
 		fmt.Println("Pack error msg id = ", msgId)
@@ -123,45 +130,48 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		//创建拆包解包对象
-		dp := NewDataPack()
-		//读取客户端Msg head
-		headData := make([]byte, dp.GetHeadLen())
-		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
-			fmt.Println("read msg head error ", err)
-			c.ExitBuffChan <- true
-			continue
-		}
-		//拆包，得到msgid 和 datalen 放在msg中
-		msg, err := dp.UnPack(headData)
-		if err != nil {
-			fmt.Println("unpack error ", err)
-			c.ExitBuffChan <- true
-			continue
-		}
-		//根据 dataLen 读取 data，放在msg.Data中
-		var data []byte
-		if msg.GetDataLen() > 0 {
-			data = make([]byte, msg.GetDataLen())
-			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
-				fmt.Println("read msg data error ", err)
-				c.ExitBuffChan <- true
-				continue
+		select {
+		case <- c.ctx.Done():
+			return
+		default:
+			//读取客户端Msg head
+			headData := make([]byte, c.TcpServer.Packet().GetHeadLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+				fmt.Println("read msg head error ", err)
+				return
 			}
+			//拆包，得到msgid 和 datalen 放在msg中
+			msg, err := c.TcpServer.Packet().UnPack(headData)
+			if err != nil {
+				fmt.Println("unpack error ", err)
+				return
+			}
+			//根据 dataLen 读取 data，放在msg.Data中
+			var data []byte
+			if msg.GetDataLen() > 0 {
+				data = make([]byte, msg.GetDataLen())
+				if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+					fmt.Println("read msg data error ", err)
+					return
+				}
+			}
+			msg.SetData(data)
+			//得到当前客户端请求的Request数据
+			req := Request{
+				conn: c,
+				msg:  msg,
+			}
+			if utils.GlobalObject.WorkerPoolSize > 0 {
+				//已经启动工作池机制，将消息交给Worker处理
+				c.MsgHandler.SendMsgToTaskQueue(&req)
+			} else {
+				//从绑定好的消息和对应的处理方法中执行对应的Handle方法
+				go c.MsgHandler.DoMsgHandler(&req)
+			}
+			
 		}
-		msg.SetData(data)
-		//得到当前客户端请求的Request数据
-		req := Request{
-			conn: c,
-			msg:  msg,
-		}
-		if utils.GlobalObject.WorkerPoolSize > 0 {
-			//已经启动工作池机制，将消息交给Worker处理
-			c.MsgHandler.SendMsgToTaskQueue(&req)
-		} else {
-			//从绑定好的消息和对应的处理方法中执行对应的Handle方法
-			go c.MsgHandler.DoMsgHandler(&req)
-		}
+
+
 	}
 }
 

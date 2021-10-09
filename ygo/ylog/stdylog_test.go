@@ -24,7 +24,7 @@ func TestStdYLog(t *testing.T) {
 	ylog.Stack(" Zinx Stack! ")
 
 	//设置日志写入文件
-	ylog.SetLogFile("./log", "testfile.log")
+	//ylog.SetLogFile("./log", "testfile.log")
 	ylog.Debug("===> zinx debug content ~~666")
 	ylog.Debug("===> zinx debug content ~~888")
 	ylog.Error("===> zinx Error!!!! ~~~555~~~")

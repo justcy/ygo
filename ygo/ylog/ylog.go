@@ -20,7 +20,9 @@ const (
 	BitStdFlag      = BitDate | BitTime                    //标准头部日志格式
 	BitDefault      = BitLevel | BitShortFile | BitStdFlag //默认日志头部格式
 )
-
+const (
+	LOG_MAX_BUF = 1024 * 1024
+)
 const (
 	LogDebug = iota
 	LogInfo
@@ -31,12 +33,12 @@ const (
 )
 
 var levels = []string{
-	"[DEBUG]",
-	"[INFO]",
-	"[WARN]",
-	"[ERROR]",
-	"[PANIC]",
-	"[FATAL]",
+	"[DEBUG] ",
+	"[INFO] ",
+	"[WARN] ",
+	"[ERROR] ",
+	"[PANIC] ",
+	"[FATAL] ",
 }
 
 type YLog struct {

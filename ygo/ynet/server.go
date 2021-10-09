@@ -20,9 +20,14 @@ type Server struct {
 	ConnMgr yiface.IConnManager
 
 	//该Server的连接创建时Hook函数
-	OnConnStart	func(conn yiface.IConnection)
+	OnConnStart func(conn yiface.IConnection)
 	//该Server的连接断开时的Hook函数
 	OnConnStop func(conn yiface.IConnection)
+	packet     yiface.IPack
+}
+
+func (s *Server) Packet() yiface.IPack {
+	return s.packet
 }
 
 func (s *Server) SetOnConnStart(hookFunc func(yiface.IConnection)) {
@@ -140,6 +145,7 @@ func NewServer() yiface.IServer {
 		Port:       utils.GlobalObject.TcpPort,
 		msgHandler: NewMsgHandle(),
 		ConnMgr:    NewConnManager(), //创建ConnManager
+		packet:     NewDataPack(),
 	}
 	return s
 }
