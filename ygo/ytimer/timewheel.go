@@ -2,202 +2,251 @@ package ytimer
 
 import (
 	"errors"
-	"fmt"
-	"github.com/justcy/ygo/ygo/ylog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
+const (
+	modeIsCircle  = true
+	modeNotCircle = false
 
-//TimeWheel 时间轮
+	modeIsAsync  = true
+	modeNotAsync = false
+)
+
 type TimeWheel struct {
-	//TimeWheel的名称
-	name string
-	//刻度的时间间隔，单位ms
-	interval int64
-	//每个时间轮上的刻度数
-	scales int
-	//当前时间指针的指向
-	curIndex int
-	//每个刻度所存放的timer定时器的最大容量
-	maxCap int
-	//当前时间轮上的所有timer
-	timerQueue map[int]map[uint32]*Timer //map[int] VALUE  其中int表示当前时间轮的刻度,
-	// map[int] map[uint32] *Timer, uint32表示Timer的ID号
-	//下一层时间轮
-	nextTimeWheel *TimeWheel
+	randomId int64 //自增任务ID
+
+	tick      time.Duration
+	ticker    *time.Ticker
+	tickQueue chan time.Time
+
+	bucketsNum    int
+	buckets       []map[taskId]*Task // key: added item, value: *Task
+	bucketIndexes map[taskId]int     // key: added item, value: bucket position
+
+	currentIndex int
+
+	onceStart sync.Once
+
+	addChan    chan *Task
+	removeChan chan *Task
+	stopChan   chan struct{}
+
+	exited   bool
+	syncPool bool
+
 	//互斥锁（继承RWMutex的 RWLock,UnLock 等方法）
 	sync.RWMutex
 }
-
-//NewTimeWheel  创建一个时间轮
-func NewTimeWheel(name string, interval int64, scales int, maxCap int) *TimeWheel {
-	// name：时间轮的名称
-	// interval：每个刻度之间的duration时间间隔
-	// scales:当前时间轮的轮盘一共多少个刻度(如我们正常的时钟就是12个刻度)
-	// maxCap: 每个刻度所最大保存的Timer定时器个数
+// NewTimeWheel create new time wheel
+func NewTimeWheel(tick time.Duration, bucketsNum int, options ...optionCall) (*TimeWheel, error) {
+	if tick.Seconds() < 0.1 {
+		return nil, errors.New("invalid params, must tick >= 100 ms")
+	}
+	if bucketsNum <= 0 {
+		return nil, errors.New("invalid params, must bucketsNum > 0")
+	}
 
 	tw := &TimeWheel{
-		name:       name,
-		interval:   interval,
-		scales:     scales,
-		maxCap:     maxCap,
-		timerQueue: make(map[int]map[uint32]*Timer, scales),
-	}
-	//初始化map
-	for i := 0; i < scales; i++ {
-		tw.timerQueue[i] = make(map[uint32]*Timer, maxCap)
+		// tick
+		tick:      tick,
+		tickQueue: make(chan time.Time, 10),
+
+		// store
+		bucketsNum:    bucketsNum,
+		bucketIndexes: make(map[taskId]int, 1024*100),
+		buckets:       make([]map[taskId]*Task, bucketsNum),
+		currentIndex:  0,
+
+		// signal
+		addChan:    make(chan *Task, 1024*5),
+		removeChan: make(chan *Task, 1024*2),
+		stopChan:   make(chan struct{}),
 	}
 
-	ylog.Info("Init timerWhell name = ", tw.name, " is Done!")
-	return tw
+	for i := 0; i < bucketsNum; i++ {
+		tw.buckets[i] = make(map[taskId]*Task, 16)
+	}
+
+	for _, op := range options {
+		op(tw)
+	}
+
+	return tw, nil
+}
+func (tw *TimeWheel) Start() {
+	tw.onceStart.Do(
+		func() {
+			tw.ticker = time.NewTicker(tw.tick)
+			go tw.run()
+			go tw.tickGenerator()
+		}, )
+}
+func (tw *TimeWheel) tickGenerator() {
+	if tw.tickQueue != nil {
+		return
+	}
+
+	for !tw.exited {
+		select {
+		case <-tw.ticker.C:
+			select {
+			case tw.tickQueue <- time.Now():
+			default:
+				panic("raise long time blocking")
+			}
+		}
+	}
 }
 
-/*
-	将一个timer定时器加入到分层时间轮中
-	tID: 每个定时器timer的唯一标识
-	t: 当前被加入时间轮的定时器
-	forceNext: 是否强制的将定时器添加到下一层时间轮
-	我们采用的算法是：
-	如果当前timer的超时时间间隔 大于一个刻度，那么进行hash计算 找到对应的刻度上添加
-	如果当前的timer的超时时间间隔 小于一个刻度 :
-					如果没有下一轮时间轮
-*/
-func (tw *TimeWheel) addTimer(tID uint32, t *Timer, forceNext bool) error {
-	defer func() error {
-		if err := recover(); err != nil {
-			errstr := fmt.Sprintf("addTimer function err : %s", err)
-			ylog.Error(errstr)
-			return errors.New(errstr)
-		}
-		return nil
-	}()
+func (tw *TimeWheel) Stop() {
+	tw.stopChan <- struct{}{}
+}
 
-	//得到当前的超时时间间隔(ms)毫秒为单位
-	delayInterval := t.unixts - UnixMilli()
+func (tw *TimeWheel) AddAfter(delay time.Duration, async bool, callback func(task *Task), args []interface{}) *Task{
+	return tw.createTask(delay, modeNotCircle, async, callback, args)
+}
 
-	//如果当前的超时时间 大于一个刻度的时间间隔
-	if delayInterval >= tw.interval {
-		//得到需要跨越几个刻度
-		dn := delayInterval / tw.interval
-		//在对应的刻度上的定时器Timer集合map加入当前定时器(由于是环形，所以要求余)
-		tw.timerQueue[(tw.curIndex+int(dn))%tw.scales][tID] = t
+func (tw *TimeWheel) AddCron(delay time.Duration, async bool, callback func(task *Task), args []interface{}) *Task{
+	return tw.createTask(delay, modeIsCircle, async, callback, args)
+}
 
-		return nil
+func (tw *TimeWheel) AddAt(unixNano time.Duration , async bool, callback func(task *Task), args []interface{}) *Task{
+	delay := int64(unixNano) - time.Now().UnixNano()
+	if delay <= 0 {
+		errors.New("invalid unixNano, must unixNano >= now ")
 	}
+	return tw.createTask(time.Duration(delay), modeNotCircle, async, callback, args)
+}
 
-	//如果当前的超时时间,小于一个刻度的时间间隔，并且当前时间轮没有下一层，经度最小的时间轮
-	if delayInterval < tw.interval && tw.nextTimeWheel == nil {
-		if forceNext == true {
-			//如果设置为强制移至下一个刻度，那么将定时器移至下一个刻度
-			//这种情况，主要是时间轮自动轮转的情况
-			//因为这是底层时间轮，该定时器在转动的时候，如果没有被调度者取走的话，该定时器将不会再被发现
-			//因为时间轮刻度已经过去，如果不强制把该定时器Timer移至下时刻，就永远不会被取走并触发调用
-			//所以这里强制将timer移至下个刻度的集合中，等待调用者在下次轮转之前取走该定时器
-			tw.timerQueue[(tw.curIndex+1)%tw.scales][tID] = t
-		} else {
-			//如果手动添加定时器，那么直接将timer添加到对应底层时间轮的当前刻度集合中
-			tw.timerQueue[tw.curIndex][tID] = t
-		}
-		return nil
+func (tw *TimeWheel) addTask(task *Task,circleMode bool) {
+	if task.callback == nil {
+		errors.New("task callback is nil")
 	}
-
-	//如果当前的超时时间，小于一个刻度的时间间隔，并且有下一层时间轮
-	if delayInterval < tw.interval {
-		return tw.nextTimeWheel.AddTimer(tID, t)
+	index,round := tw.getIndexAndCircle(task.delay)
+	if round > 0 && circleMode {
+		task.round = round - 1
+	} else {
+		task.round = round
 	}
-
+	tw.bucketIndexes[task.id] = index
+	tw.buckets[index][task.id] = task
+}
+func (tw *TimeWheel) Remove(task *Task) error {
+	tw.removeChan <- task
 	return nil
 }
-
-//AddTimer 添加一个timer到一个时间轮中(非时间轮自转情况)
-func (tw *TimeWheel) AddTimer(tID uint32, t *Timer) error {
-	tw.Lock()
-	defer tw.Unlock()
-
-	return tw.addTimer(tID, t, false)
+func (tw *TimeWheel) removeTask(task *Task) {
+	tw.collectTask(task)
 }
 
-//RemoveTimer 删除一个定时器，根据定时器的ID
-func (tw *TimeWheel) RemoveTimer(tID uint32) {
-	tw.Lock()
-	defer tw.Unlock()
-
-	for i := 0; i < tw.scales; i++ {
-		if _, ok := tw.timerQueue[i][tID]; ok {
-			delete(tw.timerQueue[i], tID)
-		}
+func (tw *TimeWheel) createTask(delay time.Duration, circle, async bool, callback func(task *Task), args []interface{}) *Task {
+	if delay <= 0 {
+		delay = tw.tick
 	}
+	var task *Task
+	if tw.syncPool {
+		task = defaultTaskPool.get()
+		task.callback = callback
+		task.args = args
+	}else{
+		task = NewTask(callback, args)
+	}
+	task.id = tw.genUniqueId()
+	task.circle = circle
+	task.async = async
+	task.delay = delay
+	tw.addChan <- task
+	return task
 }
-
-//AddTimeWheel 给一个时间轮添加下层时间轮 比如给小时时间轮添加分钟时间轮，给分钟时间轮添加秒时间轮
-func (tw *TimeWheel) AddTimeWheel(next *TimeWheel) {
-	tw.nextTimeWheel = next
-	ylog.Info("Add timerWhell[", tw.name, "]'s next [", next.name, "] is succ!")
-}
-
-/*
-	启动时间轮
-*/
 func (tw *TimeWheel) run() {
+	queue := tw.ticker.C
+	if tw.tickQueue == nil {
+		queue = tw.tickQueue
+	}
 	for {
-		//时间轮每间隔interval一刻度时间，触发转动一次
-		time.Sleep(time.Duration(tw.interval) * time.Millisecond)
-
-		tw.Lock()
-		//取出挂载在当前刻度的全部定时器
-		curTimers := tw.timerQueue[tw.curIndex]
-		//当前定时器要重新添加 所给当前刻度再重新开辟一个map Timer容器
-		tw.timerQueue[tw.curIndex] = make(map[uint32]*Timer, tw.maxCap)
-		for tID, timer := range curTimers {
-			//这里属于时间轮自动转动，forceNext设置为true
-			tw.addTimer(tID, timer, true)
+		select {
+		case <-queue:
+			tw.handleTick()
+		case task := <-tw.addChan:
+			tw.addTask(task,modeNotCircle)
+		case task := <-tw.removeChan:
+			tw.removeTask(task)
+		case <-tw.stopChan:
+			tw.exited = true
+			tw.ticker.Stop()
+			return
 		}
+	}
+}
+type optionCall func(*TimeWheel) error
 
-		//取出下一个刻度 挂载的全部定时器 进行重新添加 (为了安全起见,待考慮)
-		nextTimers := tw.timerQueue[(tw.curIndex+1)%tw.scales]
-		tw.timerQueue[(tw.curIndex+1)%tw.scales] = make(map[uint32]*Timer, tw.maxCap)
-		for tID, timer := range nextTimers {
-			tw.addTimer(tID, timer, true)
-		}
-
-		//当前刻度指针 走一格
-		tw.curIndex = (tw.curIndex + 1) % tw.scales
-
-		tw.Unlock()
+func TickSafeMode() optionCall {
+	return func(tw *TimeWheel) error {
+		tw.tickQueue = make(chan time.Time, 10)
+		return nil
 	}
 }
 
-//Run 非阻塞的方式让时间轮转起来
-func (tw *TimeWheel) Run() {
-	go tw.run()
-	ylog.Info("timerwheel name = ", tw.name, " is running...")
+func SetSyncPool(state bool) optionCall {
+	return func(tw *TimeWheel) error {
+		tw.syncPool = state
+		return nil
+	}
 }
+func (tw *TimeWheel) collectTask(task *Task) {
+	index := tw.bucketIndexes[task.id]
+	delete(tw.bucketIndexes, task.id)
+	delete(tw.buckets[index], task.id)
 
-//GetTimerWithIn 获取定时器在一段时间间隔内的Timer
-func (tw *TimeWheel) GetTimerWithIn(duration time.Duration) map[uint32]*Timer {
-	//最终触发定时器的一定是挂载最底层时间轮上的定时器
-	//1 找到最底层时间轮
-	leaftw := tw
-	for leaftw.nextTimeWheel != nil {
-		leaftw = leaftw.nextTimeWheel
+	if tw.syncPool {
+		defaultTaskPool.put(task)
 	}
+}
+func (tw *TimeWheel) handleTick() {
+	bucket := tw.buckets[tw.currentIndex]
 
-	leaftw.Lock()
-	defer leaftw.Unlock()
-	//返回的Timer集合
-	timerList := make(map[uint32]*Timer)
-
-	now := UnixMilli()
-
-	//取出当前时间轮刻度内全部Timer
-	for tID, timer := range leaftw.timerQueue[leaftw.curIndex] {
-		if timer.unixts-now < int64(duration/1e6) {
-			//当前定时器已经超时
-			timerList[tID] = timer
-			//定时器已经超时被取走，从当前时间轮上 摘除该定时器
-			delete(leaftw.timerQueue[leaftw.curIndex], tID)
+	for k, task := range bucket {
+		if task.stop {
+			tw.collectTask(task)
+			continue
 		}
+		if bucket[k].round > 0 {
+			bucket[k].round--
+			continue
+		}
+		if task.callback != nil{
+			task.circleTimes ++
+			task.Run()
+		}
+
+		// circle
+		if task.circle == modeIsCircle {
+			//tw.collectTask(task)
+			tw.addTask(task, modeIsCircle)
+			continue
+		}
+		// gc
+		tw.collectTask(task)
 	}
 
-	return timerList
+	if tw.currentIndex == tw.bucketsNum-1 {
+		tw.currentIndex = 0
+		return
+	}
+
+	tw.currentIndex++
+}
+// get the task position
+func (tw *TimeWheel) getIndexAndCircle(d time.Duration) (index int, circle int) {
+	delaySeconds := int(d.Seconds())
+	intervalSeconds := int(tw.tick.Seconds())
+	circle = int(delaySeconds / intervalSeconds / tw.bucketsNum)
+	index = int(tw.currentIndex+delaySeconds/intervalSeconds) % tw.bucketsNum
+	return
+}
+func (tw *TimeWheel) genUniqueId() taskId {
+	id := atomic.AddInt64(&tw.randomId, 1)
+	return taskId(id)
 }
