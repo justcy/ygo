@@ -6,7 +6,7 @@ import (
 )
 func TestStdYLog(t *testing.T) {
 	//设置日志写入文件
-	ylog.SetLogFile("./log", "11.log")
+	ylog.SetLogFile("./log", "game.log")
 	//测试 默认debug输出
 	ylog.Debug("zinx debug content1")
 	ylog.Debug("zinx debug content2")
@@ -35,4 +35,6 @@ func TestStdYLog(t *testing.T) {
 	ylog.Debug("===> 我不应该出现~！")
 	ylog.Debug("===> 我不应该出现~！")
 	ylog.Error("===> zinx Error  after debug close !!!!")
+
+
 }

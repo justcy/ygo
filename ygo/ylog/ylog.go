@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
+
 //日志头部信息标记位，采用bitmap方式，用户可以选择头部需要哪些标记位被打印
 const (
 	BitDate         = 1 << iota                            //日期标记位  2019/01/23
@@ -17,8 +20,12 @@ const (
 	BitLongFile                                            //完整文件名称 /home/go/src/zinx/server.go
 	BitShortFile                                           //最后文件名   server.go
 	BitLevel                                               //当前日志级别： 0(Debug), 1(Info), 2(Warn), 3(Error), 4(Panic), 5(Fatal)
-	BitStdFlag      = BitDate | BitTime                    //标准头部日志格式
-	BitDefault      = BitLevel | BitShortFile | BitStdFlag //默认日志头部格式
+	BitSplitNever                                          //永远不拆分日志
+	BitSplitDay                                            //按日拆分日志
+	BitSplitMonth                                          //按月拆分
+	BitSplitYear                                           //按年拆分
+	BitStdFlag      = BitDate | BitTime | BitSplitNever    //标准头部日志格式
+	BitDefault      = BitLevel | BitShortFile | BitStdFlag | BitSplitDay //默认日志头部格式
 )
 const (
 	LOG_MAX_BUF = 1024 * 1024
@@ -50,15 +57,21 @@ type YLog struct {
 	file       *os.File     //当前日志绑定的输出文件
 	debugClose bool         //是否打印调试debug信息
 	calldDepth int          //获取日志文件名和代码上述的runtime.Call 的函数调用层数
+
+	logPath   string //日志存储路径
+	name      string //日志文件基本名称
+	lastDay   int    //最后日期
+	nextStamp int64
 }
 
 func NewYLog(out io.Writer, prefix string, flag int) *YLog {
 	//默认 debug打开， calledDepth深度为2,YLog对象调用日志打印方法最多调用两层到达output函数
-	ylog := &YLog{out: out, prefix: prefix, flag: flag, file: nil, debugClose: false, calldDepth: 2}
+	ylog := &YLog{out: out, prefix: prefix, flag: flag, file: nil, debugClose: false, calldDepth: 2,lastDay: time.Now().Day(),nextStamp: time.Now().Unix() + 60}
 	//设置log对象 回收资源 析构方法(不设置也可以，go的Gc会自动回收，强迫症没办法)
 	runtime.SetFinalizer(ylog, CleanYLog)
 	return ylog
 }
+
 /*
    制作当条日志数据的 格式头信息
 */
@@ -119,13 +132,14 @@ func (log *YLog) formatHeader(t time.Time, file string, line int, level int) {
 				}
 				file = short
 			}
-			buf.WriteString("("+file+")")
+			buf.WriteString("(" + file + ")")
 			buf.WriteByte(':')
 			itoa(buf, line, -1) //行数
 			buf.WriteString(" - ")
 		}
 	}
 }
+
 //输出日志文件,原方法
 func (log *YLog) OutPut(level int, s string) error {
 
@@ -159,9 +173,32 @@ func (log *YLog) OutPut(level int, s string) error {
 	}
 
 	//将填充好的buf 写到IO输出上
-	_, err := log.out.Write(log.buf.Bytes())
+	_, err := log.Write(log.buf.Bytes())
 	return err
 }
+func (log *YLog) Write(p []byte) (n int, err error) {
+	current := time.Now()
+	if log.nextStamp < current.Unix() && log.out != os.Stdout && log.out != os.Stderr {
+		if log.lastDay != current.Day() {
+			log.lastDay = current.Day()
+
+			fullPath := log.logPath + "/" + log.getLogFileName(current)
+			log.resetLogFile(fullPath)
+		}
+		log.nextStamp = current.Unix() + 60
+	}
+	return log.out.Write(p)
+}
+func (log *YLog) getLogFileName(t time.Time) string {
+	proc := filepath.Base(log.name)
+	ext := filepath.Ext(log.name)
+	fname := strings.TrimSuffix(proc, ext)
+	now := time.Now()
+	month := now.Month()
+	day := now.Day()
+	return fmt.Sprintf("%s_%02d%02d.log", fname, month, day)
+}
+
 // ====> Debug <====
 func (log *YLog) Debugf(format string, v ...interface{}) {
 	if log.debugClose == true {
@@ -269,12 +306,17 @@ func (log *YLog) SetPrefix(prefix string) {
 
 //设置日志文件输出
 func (log *YLog) SetLogFile(fileDir string, fileName string) {
-	var file *os.File
-
+	current := time.Now()
+	log.logPath = fileDir
+	log.name = fileName
+	log.lastDay = current.Day()
 	//创建日志文件夹
-	_ = mkdirLog(fileDir)
-
-	fullPath := fileDir + "/" + fileName
+	_ = mkdirLog(log.logPath)
+	fullPath := log.logPath + "/" + log.getLogFileName(current)
+	log.resetLogFile(fullPath)
+}
+func (log *YLog) resetLogFile(fullPath string) {
+	var file *os.File
 	if log.checkFileExist(fullPath) {
 		//文件存在，打开
 		file, _ = os.OpenFile(fullPath, os.O_APPEND|os.O_RDWR, 0644)
@@ -282,10 +324,8 @@ func (log *YLog) SetLogFile(fileDir string, fileName string) {
 		//文件不存在，创建
 		file, _ = os.OpenFile(fullPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	}
-
 	log.mu.Lock()
 	defer log.mu.Unlock()
-
 	//关闭之前绑定的文件
 	log.closeFile()
 	log.file = file
@@ -300,7 +340,6 @@ func (log *YLog) OpenDebug() {
 	log.debugClose = false
 }
 
-
 //回收日志处理
 func CleanYLog(log *YLog) {
 	log.closeFile()
@@ -314,6 +353,7 @@ func (log *YLog) closeFile() {
 		log.out = os.Stderr
 	}
 }
+
 // ================== 以下是一些工具方法 ==========
 
 //判断日志文件是否存在

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/justcy/ygo/ygo/yiface"
+	"github.com/justcy/ygo/ygo/ylog"
 	"github.com/justcy/ygo/ygo/ynet"
 )
 
@@ -73,7 +74,7 @@ func main() {
 
 	//1 创建一个server 句柄 s
 	s := ynet.NewServer()
-
+	ylog.SetLogFile("./log","test")
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)
 	s.SetOnConnStop(DoConnectionLost)
