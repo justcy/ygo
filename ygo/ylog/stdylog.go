@@ -1,6 +1,9 @@
 package ylog
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 //StdYLog 创建全局log
 var StdYLog = NewYLog(os.Stderr, "", BitDefault)
@@ -33,7 +36,10 @@ func SetLogFile(fileDir string, fileName string) {
 func CloseDebug() {
 	StdYLog.CloseDebug()
 }
-
+//CloseDebug 设置关闭debug
+func TestReset(t time.Time) {
+	StdYLog.TestReset(t)
+}
 //OpenDebug 设置打开debug
 func OpenDebug() {
 	StdYLog.OpenDebug()

@@ -315,6 +315,10 @@ func (log *YLog) SetLogFile(fileDir string, fileName string) {
 	fullPath := log.logPath + "/" + log.getLogFileName(current)
 	log.resetLogFile(fullPath)
 }
+func (log *YLog) TestReset(t time.Time) {
+	fullPath := log.logPath + "/" + log.getLogFileName(t)
+	log.resetLogFile(fullPath)
+}
 func (log *YLog) resetLogFile(fullPath string) {
 	var file *os.File
 	if log.checkFileExist(fullPath) {
