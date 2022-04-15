@@ -33,12 +33,12 @@ const (
 )
 
 var levels = []string{
-	"[DEBUG] ",
-	"[INFO] ",
-	"[WARN] ",
-	"[ERROR] ",
-	"[PANIC] ",
-	"[FATAL] ",
+	"[DEBUG]",
+	"[INFO]",
+	"[WARN]",
+	"[ERROR]",
+	"[PANIC]",
+	"[FATAL]",
 }
 
 type YLog struct {
@@ -119,10 +119,10 @@ func (log *YLog) formatHeader(t time.Time, file string, line int, level int) {
 				}
 				file = short
 			}
-			buf.WriteString(file)
+			buf.WriteString("("+file+")")
 			buf.WriteByte(':')
 			itoa(buf, line, -1) //行数
-			buf.WriteString(": ")
+			buf.WriteString(" - ")
 		}
 	}
 }
