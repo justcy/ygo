@@ -20,12 +20,8 @@ const (
 	BitLongFile                                            //完整文件名称 /home/go/src/zinx/server.go
 	BitShortFile                                           //最后文件名   server.go
 	BitLevel                                               //当前日志级别： 0(Debug), 1(Info), 2(Warn), 3(Error), 4(Panic), 5(Fatal)
-	BitSplitNever                                          //永远不拆分日志
-	BitSplitDay                                            //按日拆分日志
-	BitSplitMonth                                          //按月拆分
-	BitSplitYear                                           //按年拆分
-	BitStdFlag      = BitDate | BitTime | BitSplitNever    //标准头部日志格式
-	BitDefault      = BitLevel | BitShortFile | BitStdFlag | BitSplitDay //默认日志头部格式
+	BitStdFlag      = BitDate | BitTime     //标准头部日志格式
+	BitDefault      = BitLevel | BitShortFile | BitStdFlag  //默认日志头部格式
 )
 const (
 	LOG_MAX_BUF = 1024 * 1024
@@ -37,6 +33,13 @@ const (
 	LogError
 	LogPanic
 	LogFatal
+)
+
+const (
+	LogSplitNever = iota
+	LogSplitDay
+	LogSplitMonth
+	LogSplitYear
 )
 
 var levels = []string{
@@ -60,13 +63,14 @@ type YLog struct {
 
 	logPath   string //日志存储路径
 	name      string //日志文件基本名称
-	lastDay   int    //最后日期
+	splitType int8    //日志分割类型
+	lastSplit int    //最后日期
 	nextStamp int64
 }
 
 func NewYLog(out io.Writer, prefix string, flag int) *YLog {
 	//默认 debug打开， calledDepth深度为2,YLog对象调用日志打印方法最多调用两层到达output函数
-	ylog := &YLog{out: out, prefix: prefix, flag: flag, file: nil, debugClose: false, calldDepth: 2,lastDay: time.Now().Day(),nextStamp: time.Now().Unix() + 60}
+	ylog := &YLog{out: out, prefix: prefix, flag: flag, file: nil, debugClose: false, calldDepth: 2,splitType: LogSplitDay,nextStamp: time.Now().Unix() + 60}
 	//设置log对象 回收资源 析构方法(不设置也可以，go的Gc会自动回收，强迫症没办法)
 	runtime.SetFinalizer(ylog, CleanYLog)
 	return ylog
@@ -140,6 +144,20 @@ func (log *YLog) formatHeader(t time.Time, file string, line int, level int) {
 	}
 }
 
+func (log *YLog) checkSplit(t time.Time) bool {
+	if log.splitType == LogSplitDay && log.lastSplit != t.Day() {
+		log.lastSplit = t.Day()
+		return true
+	} else if  log.splitType == LogSplitMonth && log.lastSplit != int(t.Month()) {
+		log.lastSplit = int(t.Month())
+		return true
+	} else if log.splitType == LogSplitYear && log.lastSplit != t.Year() {
+		log.lastSplit = t.Year()
+		return true
+	}
+	return false
+}
+
 //输出日志文件,原方法
 func (log *YLog) OutPut(level int, s string) error {
 
@@ -179,9 +197,7 @@ func (log *YLog) OutPut(level int, s string) error {
 func (log *YLog) Write(p []byte) (n int, err error) {
 	current := time.Now()
 	if log.nextStamp < current.Unix() && log.out != os.Stdout && log.out != os.Stderr {
-		if log.lastDay != current.Day() {
-			log.lastDay = current.Day()
-
+		if log.checkSplit(current) {
 			fullPath := log.logPath + "/" + log.getLogFileName(current)
 			log.resetLogFile(fullPath)
 		}
@@ -193,9 +209,20 @@ func (log *YLog) getLogFileName(t time.Time) string {
 	proc := filepath.Base(log.name)
 	ext := filepath.Ext(log.name)
 	fname := strings.TrimSuffix(proc, ext)
+	if log.splitType == LogSplitNever {
+		return fmt.Sprintf("%s.log", fname)
+	}
 	now := time.Now()
+	year := now.Year()
 	month := now.Month()
 	day := now.Day()
+
+	if log.splitType == LogSplitYear {
+		return fmt.Sprintf("%s_%02d.log", fname, year)
+	}
+	if log.splitType == LogSplitMonth {
+		return fmt.Sprintf("%s_%02d%02d.log", fname, year, month)
+	}
 	return fmt.Sprintf("%s_%02d%02d.log", fname, month, day)
 }
 
@@ -303,13 +330,19 @@ func (log *YLog) SetPrefix(prefix string) {
 	defer log.mu.Unlock()
 	log.prefix = prefix
 }
+func (log *YLog) SetSplitType(t int8){
+	log.mu.Lock()
+	defer log.mu.Unlock()
+	log.splitType = t
+}
 
 //设置日志文件输出
-func (log *YLog) SetLogFile(fileDir string, fileName string) {
+func (log *YLog) SetLogFile(fileDir string, fileName string,split int8) {
 	current := time.Now()
 	log.logPath = fileDir
 	log.name = fileName
-	log.lastDay = current.Day()
+	log.lastSplit = current.Day()
+	log.splitType = split
 	//创建日志文件夹
 	_ = mkdirLog(log.logPath)
 	fullPath := log.logPath + "/" + log.getLogFileName(current)

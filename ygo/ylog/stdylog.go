@@ -26,10 +26,14 @@ func AddFlag(flag int) {
 func SetPrefix(prefix string) {
 	StdYLog.SetPrefix(prefix)
 }
+//SetSplitType 设置StdYLog 日志分割类型
+func SetSplitType(t int8) {
+	StdYLog.SetSplitType(t)
+}
 
 //SetLogFile 设置StdYLog绑定的日志文件
-func SetLogFile(fileDir string, fileName string) {
-	StdYLog.SetLogFile(fileDir, fileName)
+func SetLogFile(fileDir string, fileName string,split int8) {
+	StdYLog.SetLogFile(fileDir, fileName,split)
 }
 
 //CloseDebug 设置关闭debug

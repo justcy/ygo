@@ -3,11 +3,10 @@ package ylog_test
 import (
 	"github.com/justcy/ygo/ygo/ylog"
 	"testing"
-	"time"
 )
 func TestStdYLog(t *testing.T) {
 	//设置日志写入文件
-	ylog.SetLogFile("./log", "game.log")
+	ylog.SetLogFile("./log", "game.log",ylog.LogSplitYear)
 	//测试 默认debug输出
 	ylog.Debug("zinx debug content1")
 	ylog.Debug("zinx debug content2")
@@ -21,7 +20,6 @@ func TestStdYLog(t *testing.T) {
 	//设置日志前缀，主要标记当前日志模块
 	ylog.SetPrefix("MODULE")
 	ylog.Error("zinx error content")
-
 	//添加标记位
 	ylog.AddFlag(ylog.BitShortFile | ylog.BitTime)
 	ylog.Stack(" Zinx Stack! ")
@@ -36,12 +34,4 @@ func TestStdYLog(t *testing.T) {
 	ylog.Debug("===> 我不应该出现~！")
 	ylog.Debug("===> 我不应该出现~！")
 	ylog.Error("===> zinx Error  after debug close !!!!")
-
-	ylog.TestReset(time.Now().Add(86400))
-	//关闭debug调试
-	ylog.Debug("===> 第二天日志文件~！")
-	ylog.Debug("===> 第二天日志文件~！")
-	ylog.Error("===> 第二天日志文件")
-
-
 }
