@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
+	"github.com/justcy/ygo/ygo/ylog"
 	"io"
 	"net"
 	"sync"
@@ -76,7 +77,7 @@ func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
 	dp := c.TcpServer.Packet()
 	msg, err := dp.Pack(NewMsgPackage(msgId, data))
 	if err != nil {
-		fmt.Println("Pack error msg id = ", msgId)
+		ylog.Infof("Pack error msg id = ", msgId)
 		return errors.New("Pack error msg ")
 	}
 
@@ -125,8 +126,8 @@ func NewConnection(server yiface.IServer, conn *net.TCPConn, connId uint32, hand
 
 /* 处理conn读数据的Goroutine */
 func (c *Connection) StartReader() {
-	fmt.Println("Reader Goroutine is  running")
-	defer fmt.Println(c.RemoteAddr().String(), " conn reader exit!")
+	ylog.Info("Reader Goroutine is  running")
+	defer ylog.Info(c.RemoteAddr().String(), " conn reader exit!")
 	defer c.Stop()
 
 	for {
@@ -137,13 +138,13 @@ func (c *Connection) StartReader() {
 			//读取客户端Msg head
 			headData := make([]byte, c.TcpServer.Packet().GetHeadLen())
 			if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
-				fmt.Println("read msg head error ", err)
+				ylog.Errorf("read msg head error %s", err)
 				return
 			}
 			//拆包，得到msgid 和 datalen 放在msg中
 			msg, err := c.TcpServer.Packet().UnPack(headData)
 			if err != nil {
-				fmt.Println("unpack error ", err)
+				ylog.Errorf("unpack error %s", err)
 				return
 			}
 			//根据 dataLen 读取 data，放在msg.Data中
@@ -151,7 +152,7 @@ func (c *Connection) StartReader() {
 			if msg.GetDataLen() > 0 {
 				data = make([]byte, msg.GetDataLen())
 				if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
-					fmt.Println("read msg data error ", err)
+					ylog.Errorf("read msg data error %s", err)
 					return
 				}
 			}
@@ -177,27 +178,27 @@ func (c *Connection) StartReader() {
 
 func (c *Connection) StartWriter() {
 
-	fmt.Println("[Writer Goroutine is running]")
-	defer fmt.Println(c.RemoteAddr().String(), "[conn Writer exit!]")
+	ylog.Info("[Writer Goroutine is running]")
+	defer ylog.Info(c.RemoteAddr().String(), "[conn Writer exit!]")
 
 	for {
 		select {
 		case data := <-c.msgChan:
 			//有数据要写给客户端
 			if _, err := c.Conn.Write(data); err != nil {
-				fmt.Println("Send Data error:, ", err, " Conn Writer exit")
+				ylog.Errorf("Send Data error:, ", err, " Conn Writer exit")
 				return
 			}
 		case data, ok := <-c.msgBuffChan:
 			if ok {
 				//有数据要写给客户端
 				if _, err := c.Conn.Write(data); err != nil {
-					fmt.Println("Send Buff Data error:, ", err, " Conn Writer exit")
+					ylog.Errorf("Send Buff Data error:, ", err, " Conn Writer exit")
 					return
 				}
 			} else {
 				break
-				fmt.Println("msgBuffChan is Closed")
+				ylog.Info("msgBuffChan is Closed")
 			}
 		case <-c.ctx.Done():
 			//conn已经关闭

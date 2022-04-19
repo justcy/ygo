@@ -2,8 +2,8 @@ package ynet
 
 import (
 	"errors"
-	"fmt"
 	"github.com/justcy/ygo/ygo/yiface"
+	"github.com/justcy/ygo/ygo/ylog"
 	"sync"
 )
 
@@ -19,7 +19,7 @@ func (connMgr *ConnManager) Add(conn yiface.IConnection) {
 
 	connMgr.connections[conn.GetConnId()] = conn
 
-	fmt.Println("connection add to ConnManager successfully: conn num = ", connMgr.Len())
+	ylog.Infof("connection add to ConnManager successfully: conn num = %d", connMgr.Len())
 }
 
 func (connMgr *ConnManager) Remove(conn yiface.IConnection) {
@@ -28,7 +28,8 @@ func (connMgr *ConnManager) Remove(conn yiface.IConnection) {
 	defer connMgr.connLock.Unlock()
 
 	delete(connMgr.connections,conn.GetConnId())
-	fmt.Println("connection Remove ConnID=",conn.GetConnId(), " successfully: conn num = ", connMgr.Len())
+
+	ylog.Infof("connection Remove ConnID=%d, successfully: conn num = %d",conn.GetConnId(), connMgr.Len())
 }
 
 func (connMgr *ConnManager) Get(connId uint32) (yiface.IConnection, error) {
@@ -59,7 +60,7 @@ func (connMgr *ConnManager) ClearConn() {
 		//删除
 		delete(connMgr.connections,connID)
 	}
-	fmt.Println("Clear All Connections successfully: conn num = ", connMgr.Len())
+	ylog.Infof("Clear All Connections successfully: conn num = %d", connMgr.Len())
 }
 
 func NewConnManager() *ConnManager {

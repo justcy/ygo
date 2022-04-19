@@ -1,9 +1,9 @@
 package ynet
 
 import (
-	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
+	"github.com/justcy/ygo/ygo/ylog"
 	"strconv"
 )
 
@@ -15,7 +15,7 @@ type MsgHandle struct {
 
 //启动一个Worker工作流程
 func (mh *MsgHandle) startOneWorker(workerId int, taskQueue chan yiface.IRequest) {
-	fmt.Println("Worker ID = ", workerId, " is started.")
+	ylog.Infof("Worker ID = %d is started.", workerId)
 	//不断的等待队列中的消息
 	for {
 		select {
@@ -28,7 +28,7 @@ func (mh *MsgHandle) startOneWorker(workerId int, taskQueue chan yiface.IRequest
 
 func (mh *MsgHandle) StartWorkerPool() {
 	//遍历需要启动worker的数量，依此启动
-	for i:= 0; i < int(mh.WorkerPoolSize); i++ {
+	for i := 0; i < int(mh.WorkerPoolSize); i++ {
 		//一个worker被启动
 		//给当前worker对应的任务队列开辟空间
 		mh.TaskQueue[i] = make(chan yiface.IRequest, utils.GlobalObject.MaxWorkerTaskLen)
@@ -36,6 +36,7 @@ func (mh *MsgHandle) StartWorkerPool() {
 		go mh.startOneWorker(i, mh.TaskQueue[i])
 	}
 }
+
 //将消息交给TaskQueue,由worker进行处理 @todo 实现其他算法
 func (mh *MsgHandle) SendMsgToTaskQueue(request yiface.IRequest) {
 	//根据ConnID来分配当前的连接应该由哪个worker负责处理
@@ -43,7 +44,7 @@ func (mh *MsgHandle) SendMsgToTaskQueue(request yiface.IRequest) {
 
 	//得到需要处理此条连接的workerID
 	workerID := request.GetConnection().GetConnId() % mh.WorkerPoolSize
-	fmt.Println("Add ConnId=", request.GetConnection().GetConnId()," request msgId=", request.GetMsgId(), "to workerId=", workerID)
+	ylog.Infof("Add ConnId=%d,request msgId=%d,to workerId=%d", request.GetConnection().GetConnId(), request.GetMsgId(), workerID)
 	//将请求消息发送给任务队列
 	mh.TaskQueue[workerID] <- request
 }
@@ -51,7 +52,7 @@ func (mh *MsgHandle) SendMsgToTaskQueue(request yiface.IRequest) {
 func (mh *MsgHandle) DoMsgHandler(request yiface.IRequest) {
 	handler, ok := mh.Apis[request.GetMsgId()]
 	if !ok {
-		fmt.Println("api msgId = ", request.GetMsgId(), " is not FOUND!")
+		ylog.Errorf("api msgId = %d is not FOUND!", request.GetMsgId() )
 		return
 	}
 	//执行对应处理方法
@@ -67,14 +68,15 @@ func (mh *MsgHandle) AddRouter(msgId uint32, router yiface.IRouter) {
 	}
 	//2 添加msg与api的绑定关系
 	mh.Apis[msgId] = router
-	fmt.Println("Add api msgId = ", msgId)
+
+	ylog.Infof("Add api msgId = %d", msgId)
 }
 
 func NewMsgHandle() *MsgHandle {
 	return &MsgHandle{
-		Apis: map[uint32]yiface.IRouter{},
-		WorkerPoolSize:utils.GlobalObject.WorkerPoolSize,
+		Apis:           map[uint32]yiface.IRouter{},
+		WorkerPoolSize: utils.GlobalObject.WorkerPoolSize,
 		//一个worker对应一个queue
-		TaskQueue:make([]chan yiface.IRequest, utils.GlobalObject.WorkerPoolSize),
+		TaskQueue: make([]chan yiface.IRequest, utils.GlobalObject.WorkerPoolSize),
 	}
 }

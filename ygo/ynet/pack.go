@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
+	"github.com/justcy/ygo/ygo/ylog"
 )
 
 type Pack struct {
@@ -53,7 +53,7 @@ func (dp *Pack) UnPack(binaryData []byte) (yiface.IMessage, error) {
 	//判断dataLen的长度是否超出我们允许的最大包长度
 
 	if utils.GlobalObject.MaxPacketSize > 0 && msg.DataLen > utils.GlobalObject.MaxPacketSize  {
-		fmt.Printf("max:%d,Request:%d",utils.GlobalObject.MaxPacketSize,msg.DataLen)
+		ylog.Errorf("max:%d,Request:%d",utils.GlobalObject.MaxPacketSize,msg.DataLen)
 		return nil, errors.New("Too large msg data recieved")
 	}
 	//这里只需要把head的数据拆包出来就可以了，然后再通过head的长度，再从conn读取一次数据

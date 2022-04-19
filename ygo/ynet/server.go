@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
+	"github.com/justcy/ygo/ygo/ylog"
 	"net"
 	"time"
 )
@@ -55,16 +56,16 @@ func (s *Server) GetConnMgr() yiface.IConnManager {
 }
 
 func (s *Server) AddRouter(msgId uint32, router yiface.IRouter) {
-	fmt.Println("Add Router success !")
+	ylog.Debug("Add Router success !")
 	s.msgHandler.AddRouter(msgId, router)
 }
 
 //============== 定义当前客户端链接的handle api ===========
 func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
 	//回显业务
-	fmt.Println("[Conn Handle] CallBackToClient ... ")
+	ylog.Debug("[Conn Handle] CallBackToClient ... ")
 	if _, err := conn.Write(data[:cnt]); err != nil {
-		fmt.Println("write back buf err ", err)
+		ylog.Infof("write back buf err %s", err)
 		return errors.New("CallBackToClient error")
 	}
 	return nil
@@ -79,19 +80,19 @@ func (s *Server) Start() {
 		//1 获取一个TCP的Addr
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {
-			fmt.Println("resolve tcp addr err: ", err)
+			ylog.Errorf("resolve tcp addr err: %s", err)
 			return
 		}
 
 		//2 监听服务器地址
 		listenner, err := net.ListenTCP(s.IPVersion, addr)
 		if err != nil {
-			fmt.Println("listen", s.IPVersion, "err", err)
+			ylog.Errorf("listen %s, err %s", s.IPVersion,  err)
 			return
 		}
 
 		//已经监听成功
-		fmt.Println("start Ygo server  ", s.Name, " succ, now listenning...")
+		fmt.Println("Start ", s.Name," succ, now listening...")
 
 		//TODO server.go 应该有一个自动生成ID的方法
 		var cid uint32
@@ -102,7 +103,7 @@ func (s *Server) Start() {
 			//3.1 阻塞等待客户端建立连接请求
 			conn, err := listenner.AcceptTCP()
 			if err != nil {
-				fmt.Println("Accept err ", err)
+				ylog.Errorf("Accept err %s", err)
 				continue
 			}
 			//3.2 设置服务器最大连接控制,如果超过最大连接，那么则关闭此新的连接
@@ -130,8 +131,7 @@ func (s *Server) Server() {
 }
 
 func (s *Server) Stop() {
-	fmt.Println("[STOP] Zinx server , name ", s.Name)
-
+	ylog.Info("[STOP] Zinx server , name ", s.Name)
 	//将其他需要清理的连接信息或者其他信息 也要一并停止或者清理
 	s.ConnMgr.ClearConn()
 }
