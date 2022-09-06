@@ -17,8 +17,8 @@ func (this *PingRouter) Handle(request yiface.IRequest) {
 	ylog.Info("Call PingRouter Handle")
 	//先读取客户端的数据，再回写ping...ping...ping
 	ylog.Infof("recv from client : msgId=%d, data=%s", request.GetMsgId(), string(request.GetData()))
-
 	//回写数据
+	//conn := request.GetConnection()
 	err := request.GetConnection().SendMsg(1, []byte("ping...ping...ping"))
 	if err != nil {
 		ylog.Error(err)
@@ -43,7 +43,7 @@ func (this *HelloYgoRouter) Handle(request yiface.IRequest) {
 
 //创建连接的时候执行
 func DoConnectionBegin(conn yiface.IConnection) {
-	ylog.Info("DoConnecionBegin is Called ... ")
+	ylog.Debug("DoConnecionBegin is Called ... ")
 	//=============设置两个链接属性，在连接创建之后===========
 	ylog.Info("Set conn Name, Home done!")
 	conn.SetProperty("Name", "Justcy")
@@ -65,7 +65,15 @@ func DoConnectionLost(conn yiface.IConnection) {
 	if home, err := conn.GetProperty("Home"); err == nil {
 		ylog.Infof("Conn Property Home = %s", home)
 	}
-	ylog.Infof("DoConneciotnLost is Called ... ")
+	ylog.Debugf("DoConneciotnLost is Called ... ")
+}
+func ServerStart(server yiface.IServer)  {
+	ylog.Debugf("ServerStart is Called ... ")
+
+
+}
+func ServerStop(server yiface.IServer)  {
+	ylog.Debugf("ServerStop is Called ... ")
 }
 
 func main() {
@@ -73,6 +81,9 @@ func main() {
 	//1 创建一个server 句柄 s
 	s := ynet.NewServer()
 	ylog.SetLogFile("./log", "test", ylog.LogSplitDay)
+	ylog.CloseDebug()
+	s.SetOnServerStart(ServerStart)
+	s.SetOnServerStop(ServerStop)
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)
 	s.SetOnConnStop(DoConnectionLost)

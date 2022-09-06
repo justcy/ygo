@@ -1,12 +1,16 @@
 package ynet
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
 	"github.com/justcy/ygo/ygo/ylog"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -18,13 +22,15 @@ type Server struct {
 	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	msgHandler yiface.IMsgHandle
 	//当前Server的链接管理器
-	ConnMgr yiface.IConnManager
-
+	ConnMgr       yiface.IConnManager
+	OnServerStart func(server yiface.IServer)
+	OnServerStop  func(server yiface.IServer)
 	//该Server的连接创建时Hook函数
 	OnConnStart func(conn yiface.IConnection)
 	//该Server的连接断开时的Hook函数
 	OnConnStop func(conn yiface.IConnection)
 	packet     yiface.IPack
+	sigs     chan os.Signal
 }
 
 func (s *Server) Packet() yiface.IPack {
@@ -38,6 +44,13 @@ func (s *Server) SetOnConnStart(hookFunc func(yiface.IConnection)) {
 func (s *Server) SetOnConnStop(hookFunc func(yiface.IConnection)) {
 	s.OnConnStop = hookFunc
 }
+func (s *Server) SetOnServerStart(hookFunc func(yiface.IServer)) {
+	s.OnServerStart = hookFunc
+}
+
+func (s *Server) SetOnServerStop(hookFunc func(yiface.IServer)) {
+	s.OnServerStop = hookFunc
+}
 
 func (s *Server) CallOnConnStart(conn yiface.IConnection) {
 	if s.OnConnStart != nil {
@@ -48,6 +61,18 @@ func (s *Server) CallOnConnStart(conn yiface.IConnection) {
 func (s *Server) CallOnConnStop(conn yiface.IConnection) {
 	if s.OnConnStop != nil {
 		s.OnConnStop(conn)
+	}
+}
+
+func (s *Server) CallOnServerStart(server yiface.IServer) {
+	if s.OnServerStart != nil {
+		s.OnServerStart(server)
+	}
+}
+
+func (s *Server) CallOnServerStop(server yiface.IServer) {
+	if s.OnServerStop != nil {
+		s.OnServerStop(server)
 	}
 }
 
@@ -87,12 +112,12 @@ func (s *Server) Start() {
 		//2 监听服务器地址
 		listenner, err := net.ListenTCP(s.IPVersion, addr)
 		if err != nil {
-			ylog.Errorf("listen %s, err %s", s.IPVersion,  err)
+			ylog.Errorf("listen %s, err %s", s.IPVersion, err)
 			return
 		}
 
 		//已经监听成功
-		fmt.Println("Start ", s.Name," succ, now listening...")
+		fmt.Println("Start ", s.Name, " succ, now listening...")
 
 		//TODO server.go 应该有一个自动生成ID的方法
 		var cid uint32
@@ -117,22 +142,33 @@ func (s *Server) Start() {
 			go dealConn.Start()
 		}
 	}()
+	s.listenSignal(context.Background(), s)
 }
 
 func (s *Server) Server() {
 	s.Start()
-
 	//TODO Server.Serve() 是否在启动服务的时候 还要处理其他的事情呢 可以在这里添加
+	s.CallOnServerStart(s)
 
 	//阻塞,否则主Go退出， listenner的go将会退出
 	for {
 		time.Sleep(10 * time.Second)
 	}
 }
+func (s *Server) listenSignal(ctx context.Context, server yiface.IServer) {
+	s.sigs = make(chan os.Signal, 1)
+	signal.Notify(s.sigs, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	select {
+	case <-s.sigs:
+		server.Stop()
+		os.Exit(0)
+	}
+}
 
 func (s *Server) Stop() {
-	ylog.Info("[STOP] Zinx server , name ", s.Name)
+	fmt.Printf("[STOP] %s exited!", s.Name)
 	//将其他需要清理的连接信息或者其他信息 也要一并停止或者清理
+	s.CallOnServerStop(s)
 	s.ConnMgr.ClearConn()
 }
 

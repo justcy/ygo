@@ -60,7 +60,7 @@ func (connMgr *ConnManager) ClearConn() {
 		//删除
 		delete(connMgr.connections,connID)
 	}
-	ylog.Infof("Clear All Connections successfully: conn num = %d", connMgr.Len())
+	ylog.Debugf("Clear All Connections successfully: conn num = %d", connMgr.Len())
 }
 
 func NewConnManager() *ConnManager {

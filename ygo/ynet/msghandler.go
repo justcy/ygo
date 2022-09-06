@@ -15,7 +15,7 @@ type MsgHandle struct {
 
 //启动一个Worker工作流程
 func (mh *MsgHandle) startOneWorker(workerId int, taskQueue chan yiface.IRequest) {
-	ylog.Infof("Worker ID = %d is started.", workerId)
+	ylog.Debugf("Worker ID = %d is started.", workerId)
 	//不断的等待队列中的消息
 	for {
 		select {
@@ -69,7 +69,7 @@ func (mh *MsgHandle) AddRouter(msgId uint32, router yiface.IRouter) {
 	//2 添加msg与api的绑定关系
 	mh.Apis[msgId] = router
 
-	ylog.Infof("Add api msgId = %d", msgId)
+	ylog.Debugf("Add api msgId = %d", msgId)
 }
 
 func NewMsgHandle() *MsgHandle {
