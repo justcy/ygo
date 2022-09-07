@@ -1,7 +1,6 @@
 package ynet
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
@@ -22,15 +21,32 @@ type Server struct {
 	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	msgHandler yiface.IMsgHandle
 	//当前Server的链接管理器
-	ConnMgr       yiface.IConnManager
+	ConnMgr yiface.IConnManager
+	//该Server启动时Hook函数
 	OnServerStart func(server yiface.IServer)
-	OnServerStop  func(server yiface.IServer)
+	//该Server退出时Hook函数
+	OnServerStop func(server yiface.IServer)
 	//该Server的连接创建时Hook函数
 	OnConnStart func(conn yiface.IConnection)
 	//该Server的连接断开时的Hook函数
 	OnConnStop func(conn yiface.IConnection)
-	packet     yiface.IPack
-	sigs     chan os.Signal
+
+	//tick函数hook
+	OnTick func(tick time.Time)
+
+	packet yiface.IPack
+	//接收关闭信号
+	sigs chan os.Signal
+	//
+	tickChan chan bool
+
+	Tick100MSec   int64 //100毫秒
+	tick300MSec   int64 //300毫秒
+	tickOneSec    int64 //1秒
+	tickFiveSec   int64 //5秒
+	tickThirtySec int64 //30秒
+	tickSixtySec  int64 //60秒
+	tickFiveMin   int64 //5分钟
 }
 
 func (s *Server) Packet() yiface.IPack {
@@ -50,6 +66,9 @@ func (s *Server) SetOnServerStart(hookFunc func(yiface.IServer)) {
 
 func (s *Server) SetOnServerStop(hookFunc func(yiface.IServer)) {
 	s.OnServerStop = hookFunc
+}
+func (s *Server) SetOnTick(hookFunc func(time.Time)) {
+	s.OnTick = hookFunc
 }
 
 func (s *Server) CallOnConnStart(conn yiface.IConnection) {
@@ -122,7 +141,6 @@ func (s *Server) Start() {
 		//TODO server.go 应该有一个自动生成ID的方法
 		var cid uint32
 		cid = 0
-
 		//3 启动server网络连接业务
 		for {
 			//3.1 阻塞等待客户端建立连接请求
@@ -140,36 +158,92 @@ func (s *Server) Start() {
 			dealConn := NewConnection(s, conn, cid, s.msgHandler)
 			cid++
 			go dealConn.Start()
+
 		}
+
 	}()
-	s.listenSignal(context.Background(), s)
 }
 
 func (s *Server) Server() {
+	s.sigs = make(chan os.Signal, 1)
+	signal.Notify(s.sigs, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	s.Start()
 	//TODO Server.Serve() 是否在启动服务的时候 还要处理其他的事情呢 可以在这里添加
 	s.CallOnServerStart(s)
 
+	if utils.GlobalObject.Tick {
+		s.tickChan = make(chan bool)
+		s.Tick100MSec = time.Now().UnixNano() / 1e6
+		s.tick300MSec = time.Now().UnixNano() / 1e6
+		s.tickOneSec = time.Now().Unix()
+		s.tickFiveSec = s.tickOneSec + 5
+		s.tickThirtySec = s.tickOneSec + 30
+		s.tickSixtySec = s.tickOneSec + 60
+		s.tickFiveMin = s.tickOneSec + 300
+
+		go func() {
+			mtick := time.NewTicker(100 * time.Millisecond)
+			for _ = range mtick.C {
+				s.tickChan <- true
+			}
+		}()
+	}
 	//阻塞,否则主Go退出， listenner的go将会退出
 	for {
-		time.Sleep(10 * time.Second)
+		select {
+		case <-s.tickChan:
+			s.Tick(time.Now())
+		case <-s.sigs:
+			s.Stop()
+			os.Exit(0)
+		}
 	}
 }
-func (s *Server) listenSignal(ctx context.Context, server yiface.IServer) {
-	s.sigs = make(chan os.Signal, 1)
-	signal.Notify(s.sigs, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	select {
-	case <-s.sigs:
-		server.Stop()
-		os.Exit(0)
-	}
-}
+
+//func (s *Server) listenSignal(ctx context.Context, server yiface.IServer) {
+//
+//	select {
+//	case <-s.sigs:
+//		server.Stop()
+//		os.Exit(0)
+//	}
+//}
 
 func (s *Server) Stop() {
 	fmt.Printf("[STOP] %s exited!", s.Name)
 	//将其他需要清理的连接信息或者其他信息 也要一并停止或者清理
 	s.CallOnServerStop(s)
 	s.ConnMgr.ClearConn()
+}
+
+func (s *Server) Tick(tick time.Time) {
+	ylog.Debug("Tick called")
+	mSec := tick.UnixNano() / 1e6
+	if mSec >= s.Tick100MSec { //100ms
+		s.Tick100MSec = mSec + 100
+	}
+	if mSec >= s.tick300MSec { //300ms
+		s.tick300MSec = mSec + 300
+	}
+	nNow := tick.Unix()
+	if nNow >= s.tickOneSec {
+		s.tickOneSec = nNow + 1
+	}
+	if nNow >= s.tickFiveSec { //5秒
+		s.tickFiveSec = nNow + 5
+	}
+	if nNow >= s.tickThirtySec { //30秒
+		s.tickThirtySec = nNow + 30
+	}
+	if nNow >= s.tickSixtySec { //60秒
+		s.tickSixtySec = nNow + 60
+	}
+	if nNow >= s.tickFiveMin { //300秒
+		s.tickFiveMin = nNow + 300
+	}
+	if s.OnTick != nil {
+		s.OnTick(tick)
+	}
 }
 
 func NewServer() yiface.IServer {

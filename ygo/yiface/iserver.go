@@ -1,5 +1,7 @@
 package yiface
 
+import "time"
+
 type IServer interface {
 	//启动服务器
 	Start()
@@ -22,6 +24,8 @@ type IServer interface {
 	SetOnConnStart(func (IConnection))
 	//设置该Server的连接断开时的Hook函数
 	SetOnConnStop(func (IConnection))
+	//设置该Server的tick的Hook函数
+	SetOnTick(func (time.Time))
 	//调用连接OnConnStart Hook函数
 	CallOnConnStart(conn IConnection)
 	//调用连接OnConnStop Hook函数

@@ -5,6 +5,7 @@ import (
 	"github.com/justcy/ygo/ygo/yiface"
 	"github.com/justcy/ygo/ygo/ylog"
 	"github.com/justcy/ygo/ygo/ynet"
+	"time"
 )
 
 //ping test 自定义路由
@@ -76,17 +77,22 @@ func ServerStop(server yiface.IServer)  {
 	ylog.Debugf("ServerStop is Called ... ")
 }
 
-func main() {
+func MyTick(tick time.Time)  {
+	ylog.Debugf("MyTick called %d",tick)
+}
 
+
+func main() {
 	//1 创建一个server 句柄 s
 	s := ynet.NewServer()
 	ylog.SetLogFile("./log", "test", ylog.LogSplitDay)
-	ylog.CloseDebug()
+	//ylog.CloseDebug()
 	s.SetOnServerStart(ServerStart)
 	s.SetOnServerStop(ServerStop)
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)
 	s.SetOnConnStop(DoConnectionLost)
+	s.SetOnTick(MyTick)
 	//配置路由
 	s.AddRouter(0, &PingRouter{})
 	s.AddRouter(1, &HelloYgoRouter{})
