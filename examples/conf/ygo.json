@@ -1,9 +1,10 @@
 {
-  "Name":"Demo server",
-  "Host":"0.0.0.0",
-  "TcpPort":7777,
-  "MaxConn":3,
-  "Version":"0.4",
-  "MaxPacketSize":4096,
-  "Tick":true
+  "Name": "Demo server",
+  "Host": "0.0.0.0",
+  "TcpPort": 6666,
+  "MaxConn": 3,
+  "Version": "0.4",
+  "MaxPacketSize": 4096,
+  "Tick": false,
+  "ConsulAddress": "consul.kanter.cn"
 }

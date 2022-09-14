@@ -3,6 +3,9 @@ package ynet
 import (
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-uuid"
+	"github.com/justcy/ygo/ygo/registry"
+	"github.com/justcy/ygo/ygo/registry/iface"
 	"github.com/justcy/ygo/ygo/utils"
 	"github.com/justcy/ygo/ygo/yiface"
 	"github.com/justcy/ygo/ygo/ylog"
@@ -14,6 +17,7 @@ import (
 )
 
 type Server struct {
+	Id        string
 	Name      string
 	IPVersion string
 	IP        string
@@ -47,6 +51,7 @@ type Server struct {
 	tickThirtySec int64 //30秒
 	tickSixtySec  int64 //60秒
 	tickFiveMin   int64 //5分钟
+	Client        map[string]yiface.IClient
 }
 
 func (s *Server) Packet() yiface.IPack {
@@ -102,6 +107,17 @@ func (s *Server) GetConnMgr() yiface.IConnManager {
 func (s *Server) AddRouter(msgId uint32, router yiface.IRouter) {
 	ylog.Debug("Add Router success !")
 	s.msgHandler.AddRouter(msgId, router)
+}
+
+func (s *Server) AddClient(key string, c yiface.IClient) {
+	s.Client[key] = c
+	s.Client[key].Start()
+}
+func (s *Server) GetClient(key string)yiface.IClient  {
+	if 	s.Client[key] == nil{
+		ylog.Errorf("client not find %s",key)
+	}
+	return s.Client[key]
 }
 
 //============== 定义当前客户端链接的handle api ===========
@@ -188,6 +204,24 @@ func (s *Server) Server() {
 			}
 		}()
 	}
+
+	if utils.GlobalObject.ConsulAddress != "" {
+		var err error
+		s.Id, err = uuid.GenerateUUID()
+		if err != nil {
+			ylog.Errorf("Generate Server UUID %s", err)
+		}
+		consulRegister := &registry.ConsulRegistry{}
+		consulRegister.Register(iface.Service{
+			Id:       s.Id,
+			Name:     s.Name,
+			Version:  "v0.0.1",
+			//Address:  "115.28.133.188",
+			Address:  "127.0.0.1",
+			Port:     s.Port,
+			Metadata: map[string]string{"tags": "111", "role": "gate"},
+		})
+	}
 	//阻塞,否则主Go退出， listenner的go将会退出
 	for {
 		select {
@@ -214,6 +248,13 @@ func (s *Server) Stop() {
 	//将其他需要清理的连接信息或者其他信息 也要一并停止或者清理
 	s.CallOnServerStop(s)
 	s.ConnMgr.ClearConn()
+	consulRegister := &registry.ConsulRegistry{}
+	consulRegister.UnRegisterById(s.Id)
+
+	for _, client := range s.Client {
+		ylog.Debugf("stop client %v",client)
+		client.Stop()
+	}
 }
 
 func (s *Server) Tick(tick time.Time) {
@@ -256,6 +297,7 @@ func NewServer() yiface.IServer {
 		msgHandler: NewMsgHandle(),
 		ConnMgr:    NewConnManager(), //创建ConnManager
 		packet:     NewDataPack(),
+		Client: make(map [string]yiface.IClient, 1),
 	}
 	return s
 }

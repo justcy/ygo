@@ -30,6 +30,8 @@ type IServer interface {
 	CallOnConnStart(conn IConnection)
 	//调用连接OnConnStop Hook函数
 	CallOnConnStop(conn IConnection)
-
+	//添加客户端
+	AddClient(key string,client IClient)
+	GetClient(key string) IClient
 	Packet() IPack
 }

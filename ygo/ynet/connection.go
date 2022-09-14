@@ -159,8 +159,8 @@ func (c *Connection) StartReader() {
 			msg.SetData(data)
 			//得到当前客户端请求的Request数据
 			req := Request{
-				conn: c,
-				msg:  msg,
+				Conn: c,
+				Msg:  msg,
 			}
 			if utils.GlobalObject.WorkerPoolSize > 0 {
 				//已经启动工作池机制，将消息交给Worker处理
