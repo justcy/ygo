@@ -250,6 +250,7 @@ func (s *Server) Stop() {
 	s.ConnMgr.ClearConn()
 	consulRegister := &registry.ConsulRegistry{}
 	consulRegister.UnRegisterById(s.Id)
+	consulRegister.UnRegisterById("c1cbfa0f-50d5-2802-46bd-ce4dfa39693d")
 
 	for _, client := range s.Client {
 		ylog.Debugf("stop client %v",client)
@@ -287,8 +288,8 @@ func (s *Server) Tick(tick time.Time) {
 	}
 }
 
-func NewServer() yiface.IServer {
-	utils.GlobalObject.Reload()
+func NewServer(conf string) yiface.IServer {
+	utils.GlobalObject.Reload(conf)
 	s := &Server{
 		Name:       utils.GlobalObject.Name,
 		IPVersion:  "tcp4",

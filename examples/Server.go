@@ -8,6 +8,8 @@ import (
 	"github.com/justcy/ygo/ygo/yiface"
 	"github.com/justcy/ygo/ygo/ylog"
 	"github.com/justcy/ygo/ygo/ynet"
+	"os"
+	//"path/filepath"
 	"time"
 )
 
@@ -79,6 +81,9 @@ func ServerStart(server yiface.IServer) {
 	}
 	resp, _ := consulRegister.GetService("Demo server")
 	ylog.Debugf("得到的服务列表 %d", len(resp))
+	if resp == nil{
+		return
+	}
 	for _, service := range resp {
 		ylog.Debugf("服务列表  %s,%s:%d", service.Name, service.Address, service.Port)
 		ylog.Debugf("服务列表  %v", service)
@@ -106,8 +111,16 @@ func MyTick(tick time.Time) {
 
 func main() {
 	//1 创建一个server 句柄 s
-	s := ynet.NewServer()
-	ylog.SetLogFile("./log", "666", ylog.LogSplitDay)
+	conf := ""
+	if len(os.Args) ==2 &&  os.Args[1] != ""{
+		conf = os.Args[1]
+	}
+	log := ""
+	if len(os.Args) ==3 && os.Args[2] != ""{
+		log = os.Args[1]
+	}
+	s := ynet.NewServer(conf)
+	ylog.SetLogPath(log,ylog.LogSplitDay)
 	//ylog.CloseDebug()
 	s.SetOnServerStart(ServerStart)
 	s.SetOnServerStop(ServerStop)

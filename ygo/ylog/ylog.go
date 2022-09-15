@@ -348,6 +348,23 @@ func (log *YLog) SetLogFile(fileDir string, fileName string,split int8) {
 	fullPath := log.logPath + "/" + log.getLogFileName(current)
 	log.resetLogFile(fullPath)
 }
+//设置日志文件
+func (log *YLog) SetLogPath(path string, split int8) {
+	logPath :="./log/server"
+	if path != ""{
+		filePath, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+		sep := string(os.PathSeparator)
+
+		if filepath.IsAbs(path) {
+			logPath = path
+		} else {
+			logPath = filePath + sep + path
+		}
+	}
+	logFilePath,logFileName := filepath.Split(logPath)
+
+	log.SetLogFile(logFilePath,logFileName,split)
+}
 func (log *YLog) TestReset(t time.Time) {
 	fullPath := log.logPath + "/" + log.getLogFileName(t)
 	log.resetLogFile(fullPath)
@@ -401,6 +418,8 @@ func (log *YLog) checkFileExist(filename string) bool {
 	}
 	return exist
 }
+
+
 
 func mkdirLog(dir string) (e error) {
 	_, er := os.Stat(dir)

@@ -35,6 +35,9 @@ func SetSplitType(t int8) {
 func SetLogFile(fileDir string, fileName string,split int8) {
 	StdYLog.SetLogFile(fileDir, fileName,split)
 }
+func SetLogPath(filePath string, split int8)  {
+	StdYLog.SetLogPath(filePath,split)
+}
 
 //CloseDebug 设置关闭debug
 func CloseDebug() {

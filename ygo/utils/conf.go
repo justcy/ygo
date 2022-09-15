@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"github.com/justcy/ygo/ygo/yiface"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
 type Config struct {
@@ -21,8 +23,18 @@ type Config struct {
 	ConsulAddress    string
 }
 
-func (g Config) Reload() {
-	data, err := ioutil.ReadFile("conf/ygo.json")
+func (g Config) Reload(config string) {
+	configName := "./default.conf"
+	if config != "" {
+		filePath, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+		sep := string(os.PathSeparator)
+		if filepath.IsAbs(config) {
+			configName = config
+		} else {
+			configName = filePath + sep + config
+		}
+	}
+	data, err := ioutil.ReadFile(configName)
 	if err != nil {
 		panic(err)
 	}
@@ -48,5 +60,5 @@ func init() {
 		Tick:             true,
 		ConsulAddress:    "127.0.0.1:8500",
 	}
-	GlobalObject.Reload()
+	GlobalObject.Reload("")
 }
