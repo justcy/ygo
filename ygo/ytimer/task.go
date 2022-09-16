@@ -13,7 +13,7 @@ type Task struct {
 	id       taskId
 	round    int
 	callback func(task *Task)
-	args     []interface{}
+	Args     []interface{}
 
 	async  bool
 	stop   bool
@@ -25,7 +25,7 @@ type Task struct {
 func NewTask(f func(v *Task), args []interface{}) *Task {
 	return &Task{
 		callback: f,
-		args:     args,
+		Args:     args,
 	}
 }
 func (t *Task) Run() {
@@ -44,7 +44,7 @@ func (t *Task) Run() {
 func (t *Task) Reset() {
 	t.round = 0
 	t.callback = nil
-	t.args = nil
+	t.Args = nil
 
 	t.async = false
 	t.stop = false
@@ -54,5 +54,5 @@ func (t *Task) Reset() {
 
 
 func (t *Task) String() interface{} {
-	return fmt.Sprintf("{Task:%s, args:%v}", reflect.TypeOf(t.callback).Name(), t.args)
+	return fmt.Sprintf("{Task:%s, Args:%v}", reflect.TypeOf(t.callback).Name(), t.Args)
 }

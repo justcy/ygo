@@ -6,6 +6,7 @@ import (
 	"github.com/justcy/ygo/ygo/yiface"
 	"github.com/justcy/ygo/ygo/ylog"
 	"github.com/justcy/ygo/ygo/ynet"
+	"github.com/justcy/ygo/ygo/ytimer"
 	"time"
 )
 
@@ -21,12 +22,15 @@ func (this *TestRouter) Handle(request yiface.IRequest) {
 	ylog.Infof("recv from server : msgId=%d, data=%s", request.GetMsgId(), string(request.GetData()))
 	//回写数据
 	//conn := request.GetConnection()
-	err := request.GetConnection().SendMsg(1, []byte("ping...ping...ping"))
-	if err != nil {
-		ylog.Error(err)
-	}
+	//err := request.GetConnection().SendMsg(1, []byte("ping...ping...ping"))
+	//if err != nil {
+	//	ylog.Error(err)
+	//}
 }
-
+func SayHello(t *ytimer.Task) {
+	t.Args[0].(*ynet.Connection).SendMsg(1,[]byte(t.Args[1].(string)))
+	fmt.Printf("%s 执行次数 %d hello %s,%s\n", time.Now(), t.Args[0], t.Args[1])
+}
 func main() {
 	ylog.SetLogPath("/Users/justcy/Documents/Develop/go/src/github.com/justcy/ygo/examples/log/client",ylog.LogSplitDay)
 	ylog.Debug("start")
@@ -35,5 +39,14 @@ func main() {
 	client.Start()
 	time.Sleep(5 * time.Second)
 	ylog.Debug(client.GetConn())
-	client.GetConn().SendMsg(1, []byte("这是一个测试"))
+
+	//tw, _ := ytimer.NewTimeWheel(1*time.Second, 10, ytimer.TickSafeMode())
+	//tw.AddCron(2*time.Second, ytimer.ModeIsAsync, SayHello, []interface{}{client.GetConn().GetTCPConnection(),"message type"})
+	//tw.Start()
+
+	for {
+		client.GetConn().SendMsg(1, []byte("this is a Test！！"))
+		time.Sleep(5 * time.Second)
+	}
+
 }

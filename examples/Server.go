@@ -25,10 +25,10 @@ func (this *PingRouter) Handle(request yiface.IRequest) {
 	ylog.Infof("recv from client : msgId=%d, data=%s", request.GetMsgId(), string(request.GetData()))
 	//回写数据
 	//conn := request.GetConnection()
-	err := request.GetConnection().SendMsg(2, []byte("ping...ping...ping"))
-	if err != nil {
-		ylog.Error(err)
-	}
+	//err := request.GetConnection().SendMsg(2, []byte("ping...ping...ping"))
+	//if err != nil {
+	//	ylog.Error(err)
+	//}
 }
 
 //HelloYgoRouter Handle
@@ -41,10 +41,10 @@ func (this *HelloYgoRouter) Handle(request yiface.IRequest) {
 	//先读取客户端的数据，再回写ping...ping...ping
 	ylog.Debugf("Hello : msgId=", request.GetMsgId(), ", data=", string(request.GetData()))
 
-	err := request.GetConnection().SendMsg(2, []byte("Hello Ygo Router V0.6"))
-	if err != nil {
-		ylog.Error(err)
-	}
+	//err := request.GetConnection().SendMsg(2, []byte("Hello Ygo Router V0.6"))
+	//if err != nil {
+	//	ylog.Error(err)
+	//}
 }
 
 //创建连接的时候执行
@@ -102,8 +102,10 @@ func ServerStart(server yiface.IServer) {
 		key := service.Address + ":" + string(service.Port)
 
 		server.AddClient(key, client)
-		server.GetClient(key).GetConn().SendMsg(1, []byte("这是一个测试"))
-
+		for {
+			time.Sleep(5*time.Second)
+			server.GetClient(key).GetConn().SendMsg(1, []byte("this is a Test!!"))
+		}
 	}
 	ylog.Debugf("ServerStart is Called ... ")
 }

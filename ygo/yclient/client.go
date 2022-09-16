@@ -30,6 +30,7 @@ type client struct {
 }
 
 var err error
+
 func (c *client) dial() net.Conn {
 	for {
 		conn, err := net.Dial("tcp", c.Addr)
@@ -54,6 +55,7 @@ func (c *client) Stop() {
 	}
 	c.isClosed = true
 	c.GetConn().Stop()
+	c.wg.Wait()
 
 }
 
@@ -66,29 +68,24 @@ func (c *client) GetConn() yiface.IConnection {
 }
 
 func (c *client) connect() {
-	for {
-		ylog.Debugf("connect")
-		defer c.wg.Done()
-	reconnect:
-		conn := c.dial()
-		ylog.Debug(conn)
-		if conn == nil {
-			return
-		}
-		c.Lock()
-		if c.isClosed {
-			c.Unlock()
-			conn.Close()
-			return
-		}
+	defer c.wg.Done()
+reconnect:
+	conn := c.dial()
+	if conn == nil {
+		return
+	}
+	c.Lock()
+	if c.isClosed {
 		c.Unlock()
-		c.Conn = NewConnection(conn.(*net.TCPConn),1,c.msgHandler)
-		c.Conn.Start()
-		ylog.Debug(c.Conn)
-		if c.AutoReconnect {
-			time.Sleep(c.ConnectInterval)
-			goto reconnect
-		}
+		conn.Close()
+		return
+	}
+	c.Unlock()
+	c.Conn = NewConnection(conn.(*net.TCPConn), 1, c.msgHandler)
+	c.Conn.Start()
+	if c.AutoReconnect {
+		time.Sleep(c.ConnectInterval)
+		goto reconnect
 	}
 }
 

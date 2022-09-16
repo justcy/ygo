@@ -7,11 +7,11 @@ import (
 	"time"
 )
 const (
-	modeIsCircle  = true
-	modeNotCircle = false
+	ModeIsCircle  = true
+	ModeNotCircle = false
 
-	modeIsAsync  = true
-	modeNotAsync = false
+	ModeIsAsync  = true
+	ModeNotAsync = false
 )
 
 type TimeWheel struct {
@@ -105,11 +105,11 @@ func (tw *TimeWheel) Stop() {
 }
 
 func (tw *TimeWheel) AddAfter(delay time.Duration, async bool, callback func(task *Task), args []interface{}) *Task{
-	return tw.createTask(delay, modeNotCircle, async, callback, args)
+	return tw.createTask(delay, ModeNotCircle, async, callback, args)
 }
 
 func (tw *TimeWheel) AddCron(delay time.Duration, async bool, callback func(task *Task), args []interface{}) *Task{
-	return tw.createTask(delay, modeIsCircle, async, callback, args)
+	return tw.createTask(delay, ModeIsCircle, async, callback, args)
 }
 
 func (tw *TimeWheel) AddAt(unixNano time.Duration , async bool, callback func(task *Task), args []interface{}) *Task{
@@ -117,7 +117,7 @@ func (tw *TimeWheel) AddAt(unixNano time.Duration , async bool, callback func(ta
 	if delay <= 0 {
 		errors.New("invalid unixNano, must unixNano >= now ")
 	}
-	return tw.createTask(time.Duration(delay), modeNotCircle, async, callback, args)
+	return tw.createTask(time.Duration(delay), ModeNotCircle, async, callback, args)
 }
 
 func (tw *TimeWheel) addTask(task *Task,circleMode bool) {
@@ -149,7 +149,7 @@ func (tw *TimeWheel) createTask(delay time.Duration, circle, async bool, callbac
 	if tw.syncPool {
 		task = defaultTaskPool.get()
 		task.callback = callback
-		task.args = args
+		task.Args = args
 	}else{
 		task = NewTask(callback, args)
 	}
@@ -170,7 +170,7 @@ func (tw *TimeWheel) run() {
 		case <-queue:
 			tw.handleTick()
 		case task := <-tw.addChan:
-			tw.addTask(task,modeNotCircle)
+			tw.addTask(task, ModeNotCircle)
 		case task := <-tw.removeChan:
 			tw.removeTask(task)
 		case <-tw.stopChan:
@@ -222,9 +222,9 @@ func (tw *TimeWheel) handleTick() {
 		}
 
 		// circle
-		if task.circle == modeIsCircle {
+		if task.circle == ModeIsCircle {
 			//tw.collectTask(task)
-			tw.addTask(task, modeIsCircle)
+			tw.addTask(task, ModeIsCircle)
 			continue
 		}
 		// gc
