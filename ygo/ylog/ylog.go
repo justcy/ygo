@@ -354,7 +354,6 @@ func (log *YLog) SetLogPath(path string, split int8) {
 	if path != ""{
 		filePath, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 		sep := string(os.PathSeparator)
-
 		if filepath.IsAbs(path) {
 			logPath = path
 		} else {

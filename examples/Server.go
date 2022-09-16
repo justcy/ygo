@@ -20,7 +20,7 @@ type PingRouter struct {
 
 //Test Handle
 func (this *PingRouter) Handle(request yiface.IRequest) {
-	ylog.Info("Call PingRouter Handle")
+	ylog.Info("Call TestRouter Handle")
 	//先读取客户端的数据，再回写ping...ping...ping
 	ylog.Infof("recv from client : msgId=%d, data=%s", request.GetMsgId(), string(request.GetData()))
 	//回写数据
@@ -79,7 +79,7 @@ func ServerStart(server yiface.IServer) {
 			AllowStale: true,
 		},
 	}
-	resp, _ := consulRegister.GetService("Demo server")
+	resp, _ := consulRegister.GetService("Gateway")
 	ylog.Debugf("得到的服务列表 %d", len(resp))
 	if resp == nil{
 		return
@@ -89,14 +89,21 @@ func ServerStart(server yiface.IServer) {
 		ylog.Debugf("服务列表  %v", service)
 		client := yclient.NewClient(fmt.Sprintf("%s:%d",service.Address,service.Port))
 		client.AddRouter(2,&PingRouter{})
-		//client.Start()
-		//client.GetConn().SendMsg(1, []byte("这是一个测试"))
-		//
-		//client.Stop()
-		key := service.Address + ":" + string(service.Port)
+		client.Start()
+		for  {
+			if client.Conn != nil{
+				client.Conn.SendMsg(1, []byte("这是一个测试"))
+			}
+			time.Sleep(5 * time.Second)
+		}
+		client.Conn.SendMsg(1, []byte("这是一个测试"))
 
-		server.AddClient(key, client)
-		server.GetClient(key).GetConn().SendMsg(1, []byte("这是一个测试"))
+		client.Stop()
+		//key := service.Address + ":" + string(service.Port)
+		//
+		//server.AddClient(key, client)
+		//server.GetClient(key).GetConn()
+		//server.GetClient(key).GetConn().SendMsg(1, []byte("这是一个测试"))
 
 	}
 	ylog.Debugf("ServerStart is Called ... ")
@@ -112,12 +119,12 @@ func MyTick(tick time.Time) {
 func main() {
 	//1 创建一个server 句柄 s
 	conf := ""
-	if len(os.Args) ==2 &&  os.Args[1] != ""{
+	if len(os.Args) >= 2 &&  os.Args[1] != ""{
 		conf = os.Args[1]
 	}
 	log := ""
 	if len(os.Args) ==3 && os.Args[2] != ""{
-		log = os.Args[1]
+		log = os.Args[2]
 	}
 	s := ynet.NewServer(conf)
 	ylog.SetLogPath(log,ylog.LogSplitDay)

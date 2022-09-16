@@ -250,7 +250,7 @@ func (s *Server) Stop() {
 	s.ConnMgr.ClearConn()
 	consulRegister := &registry.ConsulRegistry{}
 	consulRegister.UnRegisterById(s.Id)
-	consulRegister.UnRegisterById("c1cbfa0f-50d5-2802-46bd-ce4dfa39693d")
+	consulRegister.UnRegisterById("ec8f233e-f42a-99fd-9f1b-10ffff3c22e4")
 
 	for _, client := range s.Client {
 		ylog.Debugf("stop client %v",client)
