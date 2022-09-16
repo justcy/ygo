@@ -25,7 +25,7 @@ func (this *PingRouter) Handle(request yiface.IRequest) {
 	ylog.Infof("recv from client : msgId=%d, data=%s", request.GetMsgId(), string(request.GetData()))
 	//回写数据
 	//conn := request.GetConnection()
-	err := request.GetConnection().SendMsg(1, []byte("ping...ping...ping"))
+	err := request.GetConnection().SendMsg(2, []byte("ping...ping...ping"))
 	if err != nil {
 		ylog.Error(err)
 	}
@@ -39,9 +39,9 @@ type HelloYgoRouter struct {
 func (this *HelloYgoRouter) Handle(request yiface.IRequest) {
 	ylog.Debug("Call HelloZinxRouter Handle")
 	//先读取客户端的数据，再回写ping...ping...ping
-	ylog.Debugf("recv from client : msgId=", request.GetMsgId(), ", data=", string(request.GetData()))
+	ylog.Debugf("Hello : msgId=", request.GetMsgId(), ", data=", string(request.GetData()))
 
-	err := request.GetConnection().SendMsg(1, []byte("Hello Ygo Router V0.6"))
+	err := request.GetConnection().SendMsg(2, []byte("Hello Ygo Router V0.6"))
 	if err != nil {
 		ylog.Error(err)
 	}
@@ -56,10 +56,10 @@ func DoConnectionBegin(conn yiface.IConnection) {
 	conn.SetProperty("Home", "http://blog.kanter.cn")
 	//===================================================
 
-	err := conn.SendMsg(2, []byte("DoConnection BEGIN..."))
-	if err != nil {
-		ylog.Error(err)
-	}
+	//err := conn.SendMsg(2, []byte("DoConnection BEGIN..."))
+	//if err != nil {
+	//	ylog.Error(err)
+	//}
 }
 
 //连接断开的时候执行
@@ -89,21 +89,20 @@ func ServerStart(server yiface.IServer) {
 		ylog.Debugf("服务列表  %v", service)
 		client := yclient.NewClient(fmt.Sprintf("%s:%d",service.Address,service.Port))
 		client.AddRouter(2,&PingRouter{})
-		client.Start()
-		for  {
-			if client.Conn != nil{
-				client.Conn.SendMsg(1, []byte("这是一个测试"))
-			}
-			time.Sleep(5 * time.Second)
-		}
-		client.Conn.SendMsg(1, []byte("这是一个测试"))
-
-		client.Stop()
-		//key := service.Address + ":" + string(service.Port)
+		//client.Start()
+		//for  {
+		//	if client.Conn != nil{
+		//		client.Conn.SendMsg(1, []byte("这是一个测试"))
+		//	}
+		//	time.Sleep(5 * time.Second)
+		//}
+		//client.Conn.SendMsg(1, []byte("这是一个测试"))
 		//
-		//server.AddClient(key, client)
-		//server.GetClient(key).GetConn()
-		//server.GetClient(key).GetConn().SendMsg(1, []byte("这是一个测试"))
+		//client.Stop()
+		key := service.Address + ":" + string(service.Port)
+
+		server.AddClient(key, client)
+		server.GetClient(key).GetConn().SendMsg(1, []byte("这是一个测试"))
 
 	}
 	ylog.Debugf("ServerStart is Called ... ")
@@ -129,7 +128,7 @@ func main() {
 	s := ynet.NewServer(conf)
 	ylog.SetLogPath(log,ylog.LogSplitDay)
 	//ylog.CloseDebug()
-	s.SetOnServerStart(ServerStart)
+	//s.SetOnServerStart(ServerStart)
 	s.SetOnServerStop(ServerStop)
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)
