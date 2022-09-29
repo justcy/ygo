@@ -56,10 +56,14 @@ func DoConnectionBegin(conn yiface.IConnection) {
 	conn.SetProperty("Home", "http://blog.kanter.cn")
 	//===================================================
 
-	//err := conn.SendMsg(2, []byte("DoConnection BEGIN..."))
-	//if err != nil {
-	//	ylog.Error(err)
+	//for{
+	//	err := conn.SendMsg(2, []byte("now time"+time.Now().String()))
+	//	if err != nil {
+	//		ylog.Error(err)
+	//	}
+	//	time.Sleep(5*time.Second)
 	//}
+
 }
 
 //连接断开的时候执行
@@ -89,6 +93,7 @@ func ServerStart(server yiface.IServer) {
 		ylog.Debugf("服务列表  %v", service)
 		client := yclient.NewClient(fmt.Sprintf("%s:%d",service.Address,service.Port))
 		client.AddRouter(2,&PingRouter{})
+		client.SetAckMsg([]byte("heart health"))
 		//client.Start()
 		//for  {
 		//	if client.Conn != nil{
@@ -130,7 +135,7 @@ func main() {
 	s := ynet.NewServer(conf)
 	ylog.SetLogPath(log,ylog.LogSplitDay)
 	//ylog.CloseDebug()
-	//s.SetOnServerStart(ServerStart)
+	s.SetOnServerStart(ServerStart)
 	s.SetOnServerStop(ServerStop)
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)

@@ -1,7 +1,6 @@
 package ynet
 
 import (
-	"errors"
 	"fmt"
 	"github.com/hashicorp/go-uuid"
 	"github.com/justcy/ygo/ygo/registry"
@@ -119,18 +118,6 @@ func (s *Server) GetClient(key string)yiface.IClient  {
 	}
 	return s.Client[key]
 }
-
-//============== 定义当前客户端链接的handle api ===========
-func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
-	//回显业务
-	ylog.Debug("[Conn Handle] CallBackToClient ... ")
-	if _, err := conn.Write(data[:cnt]); err != nil {
-		ylog.Infof("write back buf err %s", err)
-		return errors.New("CallBackToClient error")
-	}
-	return nil
-}
-
 func (s *Server) Start() {
 	fmt.Printf("[START] Server listenner at IP :%s,Port %d,is Starting\n", s.IP, s.Port)
 	fmt.Printf("[Ygo] Version:%s,MaxConn:%d,MaxPacketSize:%d\n", utils.GlobalObject.Version, utils.GlobalObject.MaxConn, utils.GlobalObject.MaxPacketSize)
@@ -271,6 +258,7 @@ func (s *Server) Tick(tick time.Time) {
 		s.tickOneSec = nNow + 1
 	}
 	if nNow >= s.tickFiveSec { //5秒
+		s.sendClientAck()
 		s.tickFiveSec = nNow + 5
 	}
 	if nNow >= s.tickThirtySec { //30秒
@@ -284,6 +272,18 @@ func (s *Server) Tick(tick time.Time) {
 	}
 	if s.OnTick != nil {
 		s.OnTick(tick)
+	}
+}
+
+func (s *Server) sendClientAck() {
+	if s.Client == nil {
+		return
+	}
+	for _, client := range s.Client {
+		if !client.TickAck() || client.GetActMsg() == nil{
+			continue
+		}
+		client.GetConn().GetTCPConnection().Write(client.GetActMsg())
 	}
 }
 

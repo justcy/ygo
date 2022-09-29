@@ -43,12 +43,12 @@ func (c *ConsulRegistry) Register(service iface.Service) {
 		Port:    service.Port,
 		Tags:    tags,
 		Address: service.Address,
-		//Check: &consul.AgentServiceCheck{
-		//	TCP:                            service.Address,
-		//	Timeout:                        "5s",
-		//	Interval:                       "5s",
-		//	DeregisterCriticalServiceAfter: "30s",
-		//},
+		Check: &consul.AgentServiceCheck{
+			TCP:                            service.Address,
+			Timeout:                        "5s",
+			Interval:                       "5s",
+			DeregisterCriticalServiceAfter: "7200s",
+		},
 	}
 	ylog.Infof("%v,$v",c.config,c.client)
 	if err := c.client.Agent().ServiceRegister(&registration); err != nil {

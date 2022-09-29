@@ -27,6 +27,8 @@ type client struct {
 	PendingWriteNum int
 	AutoReconnect   bool
 	wg              sync.WaitGroup
+	isTickAck       bool
+	ActMsg []byte
 }
 
 var err error
@@ -89,6 +91,18 @@ reconnect:
 	}
 }
 
+func (c *client) TickAck() bool {
+	return c.isTickAck
+}
+
+func (c *client) SetAckMsg(heart []byte) {
+	c.ActMsg = heart
+}
+
+func (c *client) GetActMsg() []byte {
+	return c.ActMsg
+}
+
 func NewClient(address string) *client {
 	uuid, _ := uuid.GenerateUUID()
 	if err != nil {
@@ -102,6 +116,8 @@ func NewClient(address string) *client {
 		ConnectInterval: 5 * time.Second,
 		PendingWriteNum: 2048,
 		AutoReconnect:   true,
+		isTickAck:   true,
+		ActMsg: nil,
 	}
 	return c
 }

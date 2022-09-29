@@ -126,18 +126,18 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
+		ylog.Info("while true")
 		select {
-		case <-c.ctx.Done():
-			return
+		//case <-c.ctx.Done():
+		//	ylog.Info("error exit")
+		//	return
 		case data := <-c.msgChan:
-			//有数据要写给客户端
 			if _, err := c.Conn.Write(data); err != nil {
 				ylog.Errorf("Send Data error:, ", err, " Conn Writer exit")
 				return
 			}
 		case data, ok := <-c.msgBuffChan:
 			if ok {
-				//有数据要写给客户端
 				if _, err := c.Conn.Write(data); err != nil {
 					ylog.Errorf("Send Buff Data error:, ", err, " Conn Writer exit")
 					return
@@ -147,6 +147,7 @@ func (c *Connection) StartReader() {
 				ylog.Info("msgBuffChan is Closed")
 			}
 		default:
+			ylog.Info("default reading ")
 			//读取客户端Msg head
 			headData := make([]byte, c.packet.GetHeadLen())
 			if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
