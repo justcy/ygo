@@ -1,6 +1,7 @@
 package yclient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
@@ -24,6 +25,9 @@ type Connection struct {
 	MsgHandler yiface.IMsgHandle
 	//告知该链接已经退出
 	packet yiface.IPack
+	//告知该链接已经退出/停止的channel
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	//ExitBuffChan chan bool
 	//无缓冲通道，用于读写两个goroutine之间的通信
@@ -123,6 +127,8 @@ func (c *Connection) StartReader() {
 
 	for {
 		select {
+		case <-c.ctx.Done():
+			return
 		case data := <-c.msgChan:
 			//有数据要写给客户端
 			if _, err := c.Conn.Write(data); err != nil {
@@ -140,35 +146,36 @@ func (c *Connection) StartReader() {
 				break
 				ylog.Info("msgBuffChan is Closed")
 			}
-		}
-		//读取客户端Msg head
-		headData := make([]byte, c.packet.GetHeadLen())
-		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
-			ylog.Errorf("read msg head error %s", err)
-			return
-		}
-		//拆包，得到msgid 和 datalen 放在msg中
-		msg, err := c.packet.UnPack(headData)
-		if err != nil {
-			ylog.Errorf("unpack error %s", err)
-			return
-		}
-		//根据 dataLen 读取 data，放在msg.Data中
-		var data []byte
-		if msg.GetDataLen() > 0 {
-			data = make([]byte, msg.GetDataLen())
-			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
-				ylog.Errorf("read msg data error %s", err)
+		default:
+			//读取客户端Msg head
+			headData := make([]byte, c.packet.GetHeadLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+				ylog.Errorf("read msg head error %s", err)
 				return
 			}
+			//拆包，得到msgid 和 datalen 放在msg中
+			msg, err := c.packet.UnPack(headData)
+			if err != nil {
+				ylog.Errorf("unpack error %s", err)
+				return
+			}
+			//根据 dataLen 读取 data，放在msg.Data中
+			var data []byte
+			if msg.GetDataLen() > 0 {
+				data = make([]byte, msg.GetDataLen())
+				if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+					ylog.Errorf("read msg data error %s", err)
+					return
+				}
+			}
+			msg.SetData(data)
+			//得到当前客户端请求的Request数据
+			req := ynet.Request{
+				Conn: c,
+				Msg:  msg,
+			}
+			go c.MsgHandler.DoMsgHandler(&req)
 		}
-		msg.SetData(data)
-		//得到当前客户端请求的Request数据
-		req := ynet.Request{
-			Conn: c,
-			Msg:  msg,
-		}
-		go c.MsgHandler.DoMsgHandler(&req)
 	}
 }
 func (c *Connection) Start() {
@@ -199,4 +206,8 @@ func (c *Connection) GetConnId() uint32 {
 
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
+}
+//返回ctx，用于用户自定义的go程获取连接退出状态
+func (c *Connection) Context() context.Context {
+	return c.ctx
 }
