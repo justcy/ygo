@@ -1,6 +1,7 @@
 package ynet
 
 import (
+	"context"
 	"fmt"
 	"github.com/hashicorp/go-uuid"
 	"github.com/justcy/ygo/ygo/registry"
@@ -40,6 +41,10 @@ type Server struct {
 	packet yiface.IPack
 	//接收关闭信号
 	sigs chan os.Signal
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	//
 	tickChan chan bool
 
@@ -119,6 +124,9 @@ func (s *Server) GetClient(key string)yiface.IClient  {
 	return s.Client[key]
 }
 func (s *Server) Start() {
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	defer s.cancel()
+
 	fmt.Printf("[START] Server listenner at IP :%s,Port %d,is Starting\n", s.IP, s.Port)
 	fmt.Printf("[Ygo] Version:%s,MaxConn:%d,MaxPacketSize:%d\n", utils.GlobalObject.Version, utils.GlobalObject.MaxConn, utils.GlobalObject.MaxPacketSize)
 	go func() {
@@ -161,7 +169,6 @@ func (s *Server) Start() {
 			dealConn := NewConnection(s, conn, cid, s.msgHandler)
 			cid++
 			go dealConn.Start()
-
 		}
 
 	}()
@@ -285,6 +292,10 @@ func (s *Server) sendClientAck() {
 		}
 		client.GetConn().GetTCPConnection().Write(client.GetActMsg())
 	}
+}
+
+func (s *Server) GetCtx() context.Context {
+	return s.ctx
 }
 
 func NewServer(conf string) yiface.IServer {

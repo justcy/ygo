@@ -57,8 +57,12 @@ func (c *client) Stop() {
 	}
 	c.isClosed = true
 	c.GetConn().Stop()
+	c.cancel()
 	c.wg.Wait()
 
+}
+func (c *client) GetCtx() context.Context{
+return c.ctx
 }
 
 func (c *client) AddRouter(msgId uint32, router yiface.IRouter) {
@@ -83,7 +87,7 @@ reconnect:
 		return
 	}
 	c.Unlock()
-	c.Conn = NewConnection(conn.(*net.TCPConn), 1, c.msgHandler)
+	c.Conn = NewConnection(c,conn.(*net.TCPConn), 1, c.msgHandler)
 	c.Conn.Start()
 	if c.AutoReconnect {
 		time.Sleep(c.ConnectInterval)

@@ -56,13 +56,13 @@ func DoConnectionBegin(conn yiface.IConnection) {
 	conn.SetProperty("Home", "http://blog.kanter.cn")
 	//===================================================
 
-	//for{
-	//	err := conn.SendMsg(2, []byte("now time"+time.Now().String()))
-	//	if err != nil {
-	//		ylog.Error(err)
-	//	}
-	//	time.Sleep(5*time.Second)
-	//}
+	for{
+		err := conn.SendMsg(2, []byte("now time"+time.Now().String()))
+		if err != nil {
+			ylog.Error(err)
+		}
+		time.Sleep(5*time.Second)
+	}
 
 }
 
@@ -135,7 +135,7 @@ func main() {
 	s := ynet.NewServer(conf)
 	ylog.SetLogPath(log,ylog.LogSplitDay)
 	//ylog.CloseDebug()
-	s.SetOnServerStart(ServerStart)
+	//s.SetOnServerStart(ServerStart)
 	s.SetOnServerStop(ServerStop)
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)

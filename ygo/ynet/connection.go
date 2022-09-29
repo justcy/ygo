@@ -132,6 +132,8 @@ func (c *Connection) StartReader() {
 
 	for {
 		select {
+		case <- c.TcpServer.GetCtx().Done():
+			return
 		case <- c.ctx.Done():
 			return
 		default:
@@ -183,6 +185,8 @@ func (c *Connection) StartWriter() {
 
 	for {
 		select {
+		case <- c.TcpServer.GetCtx().Done():
+			return
 		case data := <-c.msgChan:
 			//有数据要写给客户端
 			if _, err := c.Conn.Write(data); err != nil {

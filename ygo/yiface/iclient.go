@@ -1,5 +1,7 @@
 package yiface
 
+import "context"
+
 type IClient interface {
 	//启动服务器
 	Start()
@@ -11,4 +13,5 @@ type IClient interface {
 	TickAck() bool
 	SetAckMsg(heart []byte)
 	GetActMsg() []byte
+	GetCtx() context.Context
 }

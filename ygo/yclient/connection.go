@@ -14,6 +14,8 @@ import (
 )
 
 type Connection struct {
+	//当前Conn属于哪个Server
+	Client yiface.IClient //当前conn属于哪个server，在conn初始化的时候添加即可
 	sync.RWMutex
 	//当前连接的套接字
 	Conn *net.TCPConn
@@ -105,8 +107,9 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func NewConnection(conn *net.TCPConn, connId uint32, handle yiface.IMsgHandle) *Connection {
+func NewConnection(client yiface.IClient,conn *net.TCPConn, connId uint32, handle yiface.IMsgHandle) *Connection {
 	c := &Connection{
+		Client: client,
 		Conn:        conn,
 		ConnId:      connId,
 		isClosed:    false,
@@ -128,9 +131,10 @@ func (c *Connection) StartReader() {
 	for {
 		ylog.Info("while true")
 		select {
-		//case <-c.ctx.Done():
-		//	ylog.Info("error exit")
-		//	return
+		case <- c.Client.GetCtx().Done():
+			return
+		case <- c.ctx.Done():
+			return
 		case data := <-c.msgChan:
 			if _, err := c.Conn.Write(data); err != nil {
 				ylog.Errorf("Send Data error:, ", err, " Conn Writer exit")

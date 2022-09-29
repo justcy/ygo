@@ -1,6 +1,9 @@
 package yiface
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type IServer interface {
 	//启动服务器
@@ -33,5 +36,6 @@ type IServer interface {
 	//添加客户端
 	AddClient(key string,client IClient)
 	GetClient(key string) IClient
+	GetCtx() context.Context
 	Packet() IPack
 }
