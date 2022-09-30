@@ -47,7 +47,7 @@ func (c *ConsulRegistry) Register(service iface.Service) {
 			TCP:                            service.Address,
 			Timeout:                        "5s",
 			Interval:                       "5s",
-			DeregisterCriticalServiceAfter: "7200s",
+			DeregisterCriticalServiceAfter: "600s",
 		},
 	}
 	ylog.Infof("%v,$v",c.config,c.client)

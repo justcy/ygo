@@ -133,6 +133,7 @@ func (c *Connection) StartReader() {
 	for {
 		select {
 		case <- c.TcpServer.GetCtx().Done():
+			ylog.Info("connection  recive server stop 2")
 			return
 		case <- c.ctx.Done():
 			return
@@ -186,6 +187,7 @@ func (c *Connection) StartWriter() {
 	for {
 		select {
 		case <- c.TcpServer.GetCtx().Done():
+			ylog.Info("connection  recive server stop 1")
 			return
 		case data := <-c.msgChan:
 			//有数据要写给客户端

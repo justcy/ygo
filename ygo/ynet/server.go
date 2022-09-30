@@ -55,6 +55,7 @@ type Server struct {
 	tickThirtySec int64 //30秒
 	tickSixtySec  int64 //60秒
 	tickFiveMin   int64 //5分钟
+	//Client chan yiface.IClient
 	Client        map[string]yiface.IClient
 }
 
@@ -125,8 +126,6 @@ func (s *Server) GetClient(key string)yiface.IClient  {
 }
 func (s *Server) Start() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	defer s.cancel()
-
 	fmt.Printf("[START] Server listenner at IP :%s,Port %d,is Starting\n", s.IP, s.Port)
 	fmt.Printf("[Ygo] Version:%s,MaxConn:%d,MaxPacketSize:%d\n", utils.GlobalObject.Version, utils.GlobalObject.MaxConn, utils.GlobalObject.MaxPacketSize)
 	go func() {
@@ -247,8 +246,9 @@ func (s *Server) Stop() {
 
 	for _, client := range s.Client {
 		ylog.Debugf("stop client %v",client)
-		client.Stop()
+		client.Stop(true)
 	}
+	s.cancel()
 }
 
 func (s *Server) Tick(tick time.Time) {
@@ -283,14 +283,21 @@ func (s *Server) Tick(tick time.Time) {
 }
 
 func (s *Server) sendClientAck() {
+	ylog.Info("client send ack")
 	if s.Client == nil {
 		return
 	}
+	ylog.Info("client send ack 1")
 	for _, client := range s.Client {
-		if !client.TickAck() || client.GetActMsg() == nil{
+		ylog.Info("client send ack 2")
+		if !client.TickAck(){
 			continue
 		}
-		client.GetConn().GetTCPConnection().Write(client.GetActMsg())
+		ylog.Info("client send ack 3")
+		if heart, err := client.GetProperty("HEART"); err == nil {
+			client.GetConnection().Write(heart.([]byte))
+		}
+
 	}
 }
 
@@ -308,7 +315,7 @@ func NewServer(conf string) yiface.IServer {
 		msgHandler: NewMsgHandle(),
 		ConnMgr:    NewConnManager(), //创建ConnManager
 		packet:     NewDataPack(),
-		Client: make(map [string]yiface.IClient, 1),
+		Client: make(map[string] yiface.IClient,1),
 	}
 	return s
 }

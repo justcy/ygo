@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/justcy/ygo/ygo/registry"
 	"github.com/justcy/ygo/ygo/yclient"
@@ -91,9 +90,12 @@ func ServerStart(server yiface.IServer) {
 	for _, service := range resp {
 		ylog.Debugf("服务列表  %s,%s:%d", service.Name, service.Address, service.Port)
 		ylog.Debugf("服务列表  %v", service)
-		client := yclient.NewClient(fmt.Sprintf("%s:%d",service.Address,service.Port))
+
+		//client := yclient.NewClient(fmt.Sprintf("%s:%d",service.Address,service.Port))
+		key := service.Address + ":" + string(service.Port)
+		client := yclient.NewClient(key,service.Address,service.Port)
 		client.AddRouter(2,&PingRouter{})
-		client.SetAckMsg([]byte("heart health"))
+		client.SetProperty("HEART",[]byte("heart health"))
 		//client.Start()
 		//for  {
 		//	if client.Conn != nil{
@@ -104,13 +106,14 @@ func ServerStart(server yiface.IServer) {
 		//client.Conn.SendMsg(1, []byte("这是一个测试"))
 		//
 		//client.Stop()
-		key := service.Address + ":" + string(service.Port)
 
 		server.AddClient(key, client)
-		for {
-			time.Sleep(5*time.Second)
-			server.GetClient(key).GetConn().SendMsg(1, []byte("this is a Test!!"))
-		}
+		time.Sleep(5*time.Second)
+		server.GetClient(key).Send(1,[]byte("this is a Test!!"))
+		//for {
+		//	time.Sleep(5*time.Second)
+		//	server.GetClient(key).GetConn().SendMsg(1, []byte("this is a Test!!"))
+		//}
 	}
 	ylog.Debugf("ServerStart is Called ... ")
 }
@@ -135,7 +138,7 @@ func main() {
 	s := ynet.NewServer(conf)
 	ylog.SetLogPath(log,ylog.LogSplitDay)
 	//ylog.CloseDebug()
-	//s.SetOnServerStart(ServerStart)
+	s.SetOnServerStart(ServerStart)
 	s.SetOnServerStop(ServerStop)
 	//注册链接hook回调函数
 	s.SetOnConnStart(DoConnectionBegin)

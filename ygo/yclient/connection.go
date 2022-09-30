@@ -1,7 +1,6 @@
 package yclient
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/justcy/ygo/ygo/utils"
@@ -11,6 +10,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Connection struct {
@@ -25,11 +25,7 @@ type Connection struct {
 	isClosed bool
 	//消息管理MsgId和对应处理方法的消息管理模块
 	MsgHandler yiface.IMsgHandle
-	//告知该链接已经退出
 	packet yiface.IPack
-	//告知该链接已经退出/停止的channel
-	ctx    context.Context
-	cancel context.CancelFunc
 
 	//ExitBuffChan chan bool
 	//无缓冲通道，用于读写两个goroutine之间的通信
@@ -84,7 +80,6 @@ func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
 
 	//写回客户端
 	c.msgBuffChan <- msg
-
 	return nil
 }
 
@@ -107,11 +102,10 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func NewConnection(client yiface.IClient,conn *net.TCPConn, connId uint32, handle yiface.IMsgHandle) *Connection {
+func NewConnection(client yiface.IClient,conn *net.TCPConn, handle yiface.IMsgHandle) *Connection {
 	c := &Connection{
 		Client: client,
 		Conn:        conn,
-		ConnId:      connId,
 		isClosed:    false,
 		MsgHandler:  handle,
 		msgChan:     make(chan []byte),
@@ -125,44 +119,45 @@ func NewConnection(client yiface.IClient,conn *net.TCPConn, connId uint32, handl
 /* 处理conn读数据的Goroutine */
 func (c *Connection) StartReader() {
 	ylog.Info("Reader Goroutine is  running")
-	defer ylog.Info(c.RemoteAddr().String(), " conn reader exit!")
-	defer c.Stop()
-
+	defer ylog.Info(c.RemoteAddr().String(), " Client conn reader exit!")
 	for {
 		ylog.Info("while true")
 		select {
-		case <- c.Client.GetCtx().Done():
-			return
-		case <- c.ctx.Done():
-			return
+		//case <- c.Client.GetCtx().Done():
+		//	ylog.Info("Client connection recive Done")
+		//	c.Stop()
+		//	return
+		//case <- c.ctx.Done():
+		//	return
 		case data := <-c.msgChan:
 			if _, err := c.Conn.Write(data); err != nil {
 				ylog.Errorf("Send Data error:, ", err, " Conn Writer exit")
-				return
+				break
 			}
 		case data, ok := <-c.msgBuffChan:
 			if ok {
 				if _, err := c.Conn.Write(data); err != nil {
 					ylog.Errorf("Send Buff Data error:, ", err, " Conn Writer exit")
-					return
+					break
 				}
 			} else {
 				break
 				ylog.Info("msgBuffChan is Closed")
 			}
 		default:
+			time.Sleep(3*time.Second)
 			ylog.Info("default reading ")
 			//读取客户端Msg head
 			headData := make([]byte, c.packet.GetHeadLen())
 			if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
 				ylog.Errorf("read msg head error %s", err)
-				return
+				break
 			}
 			//拆包，得到msgid 和 datalen 放在msg中
 			msg, err := c.packet.UnPack(headData)
 			if err != nil {
 				ylog.Errorf("unpack error %s", err)
-				return
+				break
 			}
 			//根据 dataLen 读取 data，放在msg.Data中
 			var data []byte
@@ -170,7 +165,7 @@ func (c *Connection) StartReader() {
 				data = make([]byte, msg.GetDataLen())
 				if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
 					ylog.Errorf("read msg data error %s", err)
-					return
+					break
 				}
 			}
 			msg.SetData(data)
@@ -202,6 +197,9 @@ func (c *Connection) Stop() {
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {
+	if c.Conn == nil{
+		ylog.Info("tcp connection lost ...")
+	}
 	return c.Conn
 }
 
@@ -213,6 +211,6 @@ func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 //返回ctx，用于用户自定义的go程获取连接退出状态
-func (c *Connection) Context() context.Context {
-	return c.ctx
-}
+//func (c *Connection) Context() context.Context {
+	//return c.ctx
+//}

@@ -1,17 +1,17 @@
 package yiface
 
-import "context"
+import (
+	"net"
+)
 
 type IClient interface {
-	//启动服务器
 	Start()
-	//停止服务器
-	Stop()
-	//路由功能:给当前服务注册一个路由业务方法，供客户端连接处理时使用
-	AddRouter(msgId uint32,router IRouter)
-	GetConn() IConnection
+	Stop(bool)
+	GetConnection() *net.TCPConn
+	AddRouter(msgId uint32, router IRouter)
+	Send(msgId uint32,data []byte) error
+	GetProperty(string) (interface{}, error)
+	SetProperty(string, interface{})
+	RemoveProperty(string)
 	TickAck() bool
-	SetAckMsg(heart []byte)
-	GetActMsg() []byte
-	GetCtx() context.Context
 }
