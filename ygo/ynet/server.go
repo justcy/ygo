@@ -252,7 +252,6 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Tick(tick time.Time) {
-	ylog.Debug("Tick called")
 	mSec := tick.UnixNano() / 1e6
 	if mSec >= s.Tick100MSec { //100ms
 		s.Tick100MSec = mSec + 100
@@ -275,6 +274,7 @@ func (s *Server) Tick(tick time.Time) {
 		s.tickSixtySec = nNow + 60
 	}
 	if nNow >= s.tickFiveMin { //300秒
+		s.ConnMgr.Tick()
 		s.tickFiveMin = nNow + 300
 	}
 	if s.OnTick != nil {
@@ -283,18 +283,14 @@ func (s *Server) Tick(tick time.Time) {
 }
 
 func (s *Server) sendClientAck() {
-	ylog.Info("client send ack")
 	if s.Client == nil {
 		return
 	}
-	ylog.Info("client send ack 1")
 	for _, client := range s.Client {
-		ylog.Info("client send ack 2")
 		if !client.TickAck(){
 			continue
 		}
-		ylog.Info("client send ack 3")
-		if heart, err := client.GetProperty("HEART"); err == nil {
+		if heart, err := client.GetProperty(HEART_MSG); err == nil {
 			client.GetConnection().Write(heart.([]byte))
 		}
 

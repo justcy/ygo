@@ -5,11 +5,12 @@ import (
 	"github.com/justcy/ygo/ygo/yiface"
 	"github.com/justcy/ygo/ygo/ylog"
 	"sync"
+	"time"
 )
 
 type ConnManager struct {
 	connections map[uint32]yiface.IConnection //管理链接信息
-	connLock   sync.RWMutex                    //读写链接的读写锁
+	connLock    sync.RWMutex                  //读写链接的读写锁
 }
 
 func (connMgr *ConnManager) Add(conn yiface.IConnection) {
@@ -27,9 +28,9 @@ func (connMgr *ConnManager) Remove(conn yiface.IConnection) {
 	connMgr.connLock.Lock()
 	defer connMgr.connLock.Unlock()
 
-	delete(connMgr.connections,conn.GetConnId())
+	delete(connMgr.connections, conn.GetConnId())
 
-	ylog.Infof("connection Remove ConnID=%d, successfully: conn num = %d",conn.GetConnId(), connMgr.Len())
+	ylog.Infof("connection Remove ConnID=%d, successfully: conn num = %d", conn.GetConnId(), connMgr.Len())
 }
 
 func (connMgr *ConnManager) Get(connId uint32) (yiface.IConnection, error) {
@@ -48,6 +49,22 @@ func (connMgr *ConnManager) Len() int {
 	return len(connMgr.connections)
 }
 
+//超过180
+func (connMgr *ConnManager) Tick() {
+	connMgr.connLock.Lock()
+	defer connMgr.connLock.Unlock()
+
+	for connID, conn := range connMgr.connections {
+		if lastActive, err := conn.GetProperty(LAST_ACTIVE); err == nil {
+			if lastActive.(int64) < time.Now().Unix()-KEEP_ALIVE {
+				conn.Stop()
+				delete(connMgr.connections, connID)
+			}
+		}
+
+	}
+}
+
 func (connMgr *ConnManager) ClearConn() {
 	//保护共享资源Map 加写锁
 	connMgr.connLock.Lock()
@@ -58,7 +75,7 @@ func (connMgr *ConnManager) ClearConn() {
 		//停止
 		conn.Stop()
 		//删除
-		delete(connMgr.connections,connID)
+		delete(connMgr.connections, connID)
 	}
 	ylog.Debugf("Clear All Connections successfully: conn num = %d", connMgr.Len())
 }

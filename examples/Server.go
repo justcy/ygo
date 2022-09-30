@@ -93,9 +93,12 @@ func ServerStart(server yiface.IServer) {
 
 		//client := yclient.NewClient(fmt.Sprintf("%s:%d",service.Address,service.Port))
 		key := service.Address + ":" + string(service.Port)
+
+		pack := ynet.NewDataPack()
+		heart,_ := pack.Pack(ynet.NewMsgPackage(1,[]byte("heart health")))
 		client := yclient.NewClient(key,service.Address,service.Port)
 		client.AddRouter(2,&PingRouter{})
-		client.SetProperty("HEART",[]byte("heart health"))
+		client.SetProperty(ynet.HEART_MSG,heart)
 		//client.Start()
 		//for  {
 		//	if client.Conn != nil{

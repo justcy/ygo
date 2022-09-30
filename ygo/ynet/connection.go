@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Connection struct {
@@ -165,6 +166,7 @@ func (c *Connection) StartReader() {
 				Conn: c,
 				Msg:  msg,
 			}
+			c.SetProperty(LAST_ACTIVE,time.Now().Unix())
 			if utils.GlobalObject.WorkerPoolSize > 0 {
 				//已经启动工作池机制，将消息交给Worker处理
 				c.MsgHandler.SendMsgToTaskQueue(&req)
