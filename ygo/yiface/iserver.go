@@ -2,6 +2,7 @@ package yiface
 
 import (
 	"context"
+	"github.com/justcy/ygo/ygo/ynet"
 	"time"
 )
 
@@ -16,7 +17,7 @@ type IServer interface {
 	AddRouter(msgId uint32,router IRouter)
 	//得到链接管理
 	GetConnMgr() IConnManager
-	GetInfo() IServer
+	GetInfo() *ynet.Server
 	//设置该Server启动时Hook函数
 	SetOnServerStart(func (IServer))
 	SetOnServerStop(func (IServer))

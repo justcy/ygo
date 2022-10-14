@@ -297,7 +297,7 @@ func (s *Server) sendClientAck() {
 	}
 }
 
-func (s *Server) GetInfo() yiface.IServer {
+func (s *Server) GetInfo() *Server {
 	return s
 }
 func (s *Server) GetCtx() context.Context {
