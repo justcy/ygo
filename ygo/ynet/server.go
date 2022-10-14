@@ -21,7 +21,7 @@ type Server struct {
 	Name      string
 	IPVersion string
 	IP        string
-	Port      int
+	Port      int16
 	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	msgHandler yiface.IMsgHandle
 	//当前Server的链接管理器

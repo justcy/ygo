@@ -5,7 +5,7 @@ type Service struct {
 	Name     string            `json:"name"`
 	Version  string            `json:"version"`
 	Address  string            `json:"address"`
-	Port     int               `json:"port"`
+	Port     int16               `json:"port"`
 	Metadata map[string]string `json:"metadata"`
 }
 type Node struct {
