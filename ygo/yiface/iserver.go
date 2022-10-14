@@ -16,6 +16,7 @@ type IServer interface {
 	AddRouter(msgId uint32,router IRouter)
 	//得到链接管理
 	GetConnMgr() IConnManager
+	GetInfo() IServer
 	//设置该Server启动时Hook函数
 	SetOnServerStart(func (IServer))
 	SetOnServerStop(func (IServer))
