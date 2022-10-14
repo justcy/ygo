@@ -20,7 +20,8 @@ type Server struct {
 	Id        string
 	Name      string
 	IPVersion string
-	IP        string
+	IP        string //监听的外网ip
+	Local     string
 	Port      int16
 	//当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	msgHandler yiface.IMsgHandle
@@ -56,7 +57,7 @@ type Server struct {
 	tickSixtySec  int64 //60秒
 	tickFiveMin   int64 //5分钟
 	//Client chan yiface.IClient
-	Client        map[string]yiface.IClient
+	Client map[string]yiface.IClient
 }
 
 func (s *Server) Packet() yiface.IPack {
@@ -118,9 +119,9 @@ func (s *Server) AddClient(key string, c yiface.IClient) {
 	s.Client[key] = c
 	s.Client[key].Start()
 }
-func (s *Server) GetClient(key string)yiface.IClient  {
-	if 	s.Client[key] == nil{
-		ylog.Errorf("client not find %s",key)
+func (s *Server) GetClient(key string) yiface.IClient {
+	if s.Client[key] == nil {
+		ylog.Errorf("client not find %s", key)
 	}
 	return s.Client[key]
 }
@@ -206,9 +207,9 @@ func (s *Server) Server() {
 		}
 		consulRegister := &registry.ConsulRegistry{}
 		consulRegister.Register(iface.Service{
-			Id:       s.Id,
-			Name:     s.Name,
-			Version:  "v0.0.1",
+			Id:      s.Id,
+			Name:    s.Name,
+			Version: "v0.0.1",
 			//Address:  "115.28.133.188",
 			Address:  "127.0.0.1",
 			Port:     s.Port,
@@ -245,7 +246,7 @@ func (s *Server) Stop() {
 	consulRegister.UnRegisterById(s.Id)
 
 	for _, client := range s.Client {
-		ylog.Debugf("stop client %v",client)
+		ylog.Debugf("stop client %v", client)
 		client.Stop(true)
 	}
 	s.cancel()
@@ -287,7 +288,7 @@ func (s *Server) sendClientAck() {
 		return
 	}
 	for _, client := range s.Client {
-		if !client.TickAck(){
+		if !client.TickAck() {
 			continue
 		}
 		if heart, err := client.GetProperty(HEART_MSG); err == nil {
@@ -310,11 +311,12 @@ func NewServer(conf string) yiface.IServer {
 		Name:       utils.GlobalObject.Name,
 		IPVersion:  "tcp4",
 		IP:         utils.GlobalObject.Host,
+		Local:      utils.GlobalObject.Local,
 		Port:       utils.GlobalObject.TcpPort,
 		msgHandler: NewMsgHandle(),
 		ConnMgr:    NewConnManager(), //创建ConnManager
 		packet:     NewDataPack(),
-		Client: make(map[string] yiface.IClient,1),
+		Client:     make(map[string]yiface.IClient, 1),
 	}
 	return s
 }

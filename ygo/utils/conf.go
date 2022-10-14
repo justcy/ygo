@@ -11,7 +11,8 @@ import (
 type Config struct {
 	TCPServer        yiface.IServer //Ygo全局Server对象
 	Host             string         //IP
-	TcpPort          int16            //当前服务器监听的端口
+	Local            string         //IP
+	TcpPort          int16          //当前服务器监听的端口
 	Name             string         //当前服务器名称
 	Version          string         //当前Ygo版本号
 	MaxPacketSize    uint32         //数据包的最大值
